@@ -1,0 +1,11 @@
+run:
+  skip-files:
+    - ".*\\.toml$"
+    - ".*\\.yaml$"
+    - ".*\\.yml$"
+    - ".*\\.json$"
+    - ".*\\.md$"
+
+issues:
+  exclude-files:
+    - "\\.air\\.toml$"
