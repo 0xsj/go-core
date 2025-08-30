@@ -37,11 +37,11 @@ func NewApp() (*App, error) {
 	mux.HandleFunc("/", rootHandler)
 
 	server := &http.Server{
-		Addr:		":8080",
-		Handler:	 mux,
-		ReadTimeout: 15 * time.Second,
+		Addr:         ":8080",
+		Handler:      mux,
+		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
-		IdleTimeout: 60 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
 	return &App{
@@ -49,7 +49,7 @@ func NewApp() (*App, error) {
 	}, nil
 }
 
-func (a * App) Start(ctx context.Context) error {
+func (a *App) Start(ctx context.Context) error {
 	go func() {
 		log.Printf("Server starting on %s", a.server.Addr)
 		if err := a.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -70,13 +70,12 @@ func (a * App) Start(ctx context.Context) error {
 	return nil
 }
 
-
-
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, "OK")
 }
+
 func rootHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK) 
+	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, "Welcome")
 }
