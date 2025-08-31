@@ -24,7 +24,6 @@ const (
 	ColorCyan   = "\033[36m"
 )
 
-// Context keys for correlation
 type contextKey string
 
 const (
@@ -35,7 +34,6 @@ const (
 	ContextKeySessionID     contextKey = "session_id"
 )
 
-// LogLevel represents the severity level of a log entry
 type LogLevel int
 
 const (
@@ -46,7 +44,6 @@ const (
 	LevelFatal
 )
 
-// String returns the string representation of the log level
 func (l LogLevel) String() string {
 	switch l {
 	case LevelDebug:
@@ -64,15 +61,13 @@ func (l LogLevel) String() string {
 	}
 }
 
-// LogFormat represents the output format
 type LogFormat int
 
 const (
-	FormatPretty LogFormat = iota // Human-readable with colors
-	FormatJSON                    // Structured JSON
+	FormatPretty LogFormat = iota 
+	FormatJSON                    
 )
 
-// LogEntry represents a single log entry
 type LogEntry struct {
 	Timestamp time.Time      `json:"timestamp"`
 	Level     LogLevel       `json:"level"`
@@ -82,13 +77,11 @@ type LogEntry struct {
 	Caller    string         `json:"caller,omitempty"`
 }
 
-// Field represents a structured logging field
 type Field struct {
 	Key   string
 	Value any
 }
 
-// Helper functions for creating fields
 func String(key, value string) Field {
 	return Field{Key: key, Value: value}
 }
@@ -113,7 +106,6 @@ func Err(err error) Field {
 	return Field{Key: "error", Value: err}
 }
 
-// LoggerConfig holds configuration for the logger
 type LoggerConfig struct {
 	Level      LogLevel
 	Output     io.Writer
@@ -122,7 +114,6 @@ type LoggerConfig struct {
 	ShowColor  bool
 }
 
-// DefaultConfig returns a default logger configuration
 func DefaultConfig() *LoggerConfig {
 	return &LoggerConfig{
 		Level:      LevelInfo,
@@ -133,7 +124,6 @@ func DefaultConfig() *LoggerConfig {
 	}
 }
 
-// Logger interface defines the logging contract
 type Logger interface {
 	// Core logging methods
 	Debug(msg string, fields ...Field)
@@ -173,19 +163,23 @@ type logger struct {
 	mu     sync.RWMutex
 }
 
-// NewLogger creates a new logger instance
 func NewLogger(config *LoggerConfig) Logger {
 	if config == nil {
 		config = DefaultConfig()
 	}
 
+	// Make sure Output is set
+	if config.Output == nil {
+		config.Output = os.Stdout
+	}
+
 	return &logger{
 		config: config,
-		fields: make(map[string]any),
+		fields: make(map[string]interface{}),
+		ctx:    nil,
 	}
 }
 
-// Debug logs a debug level message
 func (l *logger) Debug(msg string, fields ...Field) {
 	if !l.IsLevelEnabled(LevelDebug) {
 		return
@@ -193,7 +187,6 @@ func (l *logger) Debug(msg string, fields ...Field) {
 	l.log(LevelDebug, msg, fields...)
 }
 
-// Info logs an info level message
 func (l *logger) Info(msg string, fields ...Field) {
 	if !l.IsLevelEnabled(LevelInfo) {
 		return
@@ -201,7 +194,6 @@ func (l *logger) Info(msg string, fields ...Field) {
 	l.log(LevelInfo, msg, fields...)
 }
 
-// Warn logs a warning level message
 func (l *logger) Warn(msg string, fields ...Field) {
 	if !l.IsLevelEnabled(LevelWarn) {
 		return
@@ -209,7 +201,6 @@ func (l *logger) Warn(msg string, fields ...Field) {
 	l.log(LevelWarn, msg, fields...)
 }
 
-// Error logs an error level message
 func (l *logger) Error(msg string, fields ...Field) {
 	if !l.IsLevelEnabled(LevelError) {
 		return
@@ -217,13 +208,11 @@ func (l *logger) Error(msg string, fields ...Field) {
 	l.log(LevelError, msg, fields...)
 }
 
-// Fatal logs a fatal level message and exits
 func (l *logger) Fatal(msg string, fields ...Field) {
 	l.log(LevelFatal, msg, fields...)
 	os.Exit(1)
 }
 
-// WithContext returns a logger with context
 func (l *logger) WithContext(ctx context.Context) Logger {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -235,7 +224,6 @@ func (l *logger) WithContext(ctx context.Context) Logger {
 	}
 }
 
-// WithFields returns a logger with additional fields
 func (l *logger) WithFields(fields ...Field) Logger {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -252,17 +240,14 @@ func (l *logger) WithFields(fields ...Field) Logger {
 	}
 }
 
-// WithError returns a logger with an error field
 func (l *logger) WithError(err error) Logger {
 	return l.WithFields(Err(err))
 }
 
-// With returns a logger with a single field
 func (l *logger) With(key string, value any) Logger {
 	return l.WithFields(Field{Key: key, Value: value})
 }
 
-// Correlation methods
 func (l *logger) WithCorrelationID(id string) Logger {
 	return l.WithFields(String("correlation_id", id))
 }
@@ -279,7 +264,6 @@ func (l *logger) WithUserID(id string) Logger {
 	return l.WithFields(String("user_id", id))
 }
 
-// Level control methods
 func (l *logger) SetLevel(level LogLevel) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -298,14 +282,12 @@ func (l *logger) IsLevelEnabled(level LogLevel) bool {
 	return level >= l.config.Level
 }
 
-// SetOutput sets the output writer
 func (l *logger) SetOutput(w io.Writer) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.config.Output = w
 }
 
-// log is the core logging method
 func (l *logger) log(level LogLevel, msg string, fields ...Field) {
 	entry := &LogEntry{
 		Timestamp: time.Now(),
@@ -314,20 +296,18 @@ func (l *logger) log(level LogLevel, msg string, fields ...Field) {
 		Fields:    l.buildFields(fields...),
 	}
 
-	// Add caller information if enabled
 	if l.config.ShowCaller {
 		entry.Caller = l.getCaller()
 	}
 
-	// Add correlation data from context
 	l.addCorrelationFromContext(entry)
 
-	// Format and write the entry
 	output := l.formatEntry(entry)
-	l.config.Output.Write([]byte(output))
+	if _, err := l.config.Output.Write([]byte(output)); err != nil {
+		fmt.Fprintf(os.Stderr, "Logger write error: %v\n", err)
+	}
 }
 
-// buildFields combines logger fields with provided fields
 func (l *logger) buildFields(fields ...Field) map[string]any {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -339,7 +319,6 @@ func (l *logger) buildFields(fields ...Field) map[string]any {
 	return result
 }
 
-// copyFields creates a copy of the logger's fields
 func (l *logger) copyFields() map[string]any {
 	result := make(map[string]any, len(l.fields))
 	for k, v := range l.fields {
@@ -348,15 +327,12 @@ func (l *logger) copyFields() map[string]any {
 	return result
 }
 
-// getCaller returns the caller information
 func (l *logger) getCaller() string {
-	// Skip getCaller, log, and the public method (Debug, Info, etc.)
 	_, file, line, ok := runtime.Caller(3)
 	if !ok {
 		return "unknown"
 	}
 
-	// Get just the filename, not the full path
 	parts := strings.Split(file, "/")
 	if len(parts) > 0 {
 		file = parts[len(parts)-1]
@@ -365,7 +341,6 @@ func (l *logger) getCaller() string {
 	return fmt.Sprintf("%s:%d", file, line)
 }
 
-// addCorrelationFromContext extracts correlation IDs from context
 func (l *logger) addCorrelationFromContext(entry *LogEntry) {
 	if l.ctx == nil {
 		return
@@ -389,7 +364,6 @@ func (l *logger) addCorrelationFromContext(entry *LogEntry) {
 	}
 }
 
-// formatEntry formats a log entry based on the configured format
 func (l *logger) formatEntry(entry *LogEntry) string {
 	switch l.config.Format {
 	case FormatJSON:
@@ -401,9 +375,7 @@ func (l *logger) formatEntry(entry *LogEntry) string {
 	}
 }
 
-// formatJSON formats entry as JSON
 func (l *logger) formatJSON(entry *LogEntry) string {
-	// Simple JSON formatting - in production you might want to use encoding/json
 	timestamp := entry.Timestamp.Format(time.RFC3339)
 
 	var parts []string
@@ -422,28 +394,23 @@ func (l *logger) formatJSON(entry *LogEntry) string {
 	return fmt.Sprintf("{%s}\n", strings.Join(parts, ","))
 }
 
-// formatPretty formats entry in a human-readable format with colors
 func (l *logger) formatPretty(entry *LogEntry) string {
 	timestamp := entry.Timestamp.Format("2006-01-02 15:04:05")
 
-	// Get colors for the level
 	levelColor, resetColor := l.getLevelColors(entry.Level)
 
 	var builder strings.Builder
 
-	// Timestamp
 	builder.WriteString(ColorGray)
 	builder.WriteString(timestamp)
 	builder.WriteString(resetColor)
 	builder.WriteString(" ")
 
-	// Level with color
 	builder.WriteString(levelColor)
 	builder.WriteString(fmt.Sprintf("[%-5s]", entry.Level.String()))
 	builder.WriteString(resetColor)
 	builder.WriteString(" ")
 
-	// Caller info
 	if entry.Caller != "" {
 		builder.WriteString(ColorCyan)
 		builder.WriteString(fmt.Sprintf("%-20s", entry.Caller))
@@ -451,10 +418,8 @@ func (l *logger) formatPretty(entry *LogEntry) string {
 		builder.WriteString(" ")
 	}
 
-	// Message
 	builder.WriteString(entry.Message)
 
-	// Fields
 	if len(entry.Fields) > 0 {
 		builder.WriteString(" ")
 		builder.WriteString(ColorGray)
@@ -477,7 +442,6 @@ func (l *logger) formatPretty(entry *LogEntry) string {
 	return builder.String()
 }
 
-// getLevelColors returns the color codes for a log level
 func (l *logger) getLevelColors(level LogLevel) (levelColor, resetColor string) {
 	if !l.config.ShowColor {
 		return "", ""

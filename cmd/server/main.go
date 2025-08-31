@@ -3,12 +3,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/0xsj/go-core/internal/lib/logger"
 )
 
 func main() {
@@ -29,9 +32,37 @@ func main() {
 
 type App struct {
 	server *http.Server
+	logger logger.Logger
 }
 
 func NewApp() (*App, error) {
+	// Initialize colorized logger
+	config := &logger.LoggerConfig{
+		Level:      logger.LevelDebug,
+		Format:     logger.FormatPretty,
+		ShowCaller: true,
+		ShowColor:  true,
+	}
+
+	appLogger := logger.NewLogger(config)
+
+	// Test the logger with different levels and colors
+	appLogger.Debug("🔍 Application initializing - debug level")
+	appLogger.Info("ℹ️  Logger configured successfully",
+		logger.String("format", "pretty"),
+		logger.Bool("colors", true),
+	)
+	appLogger.Warn("⚠️  This is a sample warning message")
+
+	// Test with correlation IDs
+	appLogger.WithRequestID("init-001").
+		WithUserID("system").
+		Info("Application components loading")
+
+	// Test error logging
+	sampleErr := errors.New("sample error for demonstration")
+	appLogger.WithError(sampleErr).Error("❌ Sample error message")
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/", rootHandler)
@@ -44,29 +75,38 @@ func NewApp() (*App, error) {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	appLogger.Info("🚀 HTTP server configured",
+		logger.String("addr", server.Addr),
+		logger.Duration("read_timeout", server.ReadTimeout),
+		logger.Duration("write_timeout", server.WriteTimeout),
+	)
+
 	return &App{
 		server: server,
+		logger: appLogger,
 	}, nil
 }
 
 func (a *App) Start(ctx context.Context) error {
 	go func() {
-		log.Printf("Server starting on %s", a.server.Addr)
+		a.logger.Info("🌐 Server starting", logger.String("addr", a.server.Addr))
 		if err := a.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server failed to start: %v", err)
+			a.logger.Fatal("💥 Server failed to start", logger.Err(err))
 		}
 	}()
 
 	<-ctx.Done()
-	log.Printf("Shutdown signal received")
+	a.logger.Warn("🛑 Shutdown signal received")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := a.server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("Server forced to shutdown: %v", err)
+		a.logger.Error("⚡ Server forced to shutdown", logger.Err(err))
 		return err
 	}
+
+	a.logger.Info("✅ Server shutdown completed gracefully")
 	return nil
 }
 
@@ -77,5 +117,5 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, "Welcome")
+	fmt.Fprint(w, "Welcome to go-core!")
 }
