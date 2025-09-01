@@ -6,10 +6,10 @@ import (
 )
 
 type Config struct {
-	Server ServerConfig `json:"server"`
-	Logger LoggerConfig `json:"logger"`
+	Server   ServerConfig   `json:"server"`
+	Logger   LoggerConfig   `json:"logger"`
 	Database DatabaseConfig `json:"database"`
-	App AppConfig `json:"app"`
+	App      AppConfig      `json:"app"`
 }
 
 type ServerConfig struct {
