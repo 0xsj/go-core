@@ -148,7 +148,6 @@ func (l *loader) loadEnvIntoStruct(v reflect.Value, prefix string) error {
 	return nil
 }
 
-// setFieldValue sets a field value from a string based on the field type
 func (l *loader) setFieldValue(field reflect.Value, value string, fieldType reflect.StructField) error {
 	switch field.Kind() {
 	case reflect.String:
@@ -169,7 +168,6 @@ func (l *loader) setFieldValue(field reflect.Value, value string, fieldType refl
 		field.SetBool(boolVal)
 		
 	case reflect.Int64:
-		// Handle time.Duration specially
 		if field.Type() == reflect.TypeOf(time.Duration(0)) {
 			duration, err := time.ParseDuration(value)
 			if err != nil {
@@ -191,14 +189,12 @@ func (l *loader) setFieldValue(field reflect.Value, value string, fieldType refl
 	return nil
 }
 
-// createDefaultConfig creates a config with default values from struct tags
 func (l *loader) createDefaultConfig() *Config {
 	config := &Config{}
 	l.setDefaultValues(reflect.ValueOf(config).Elem())
 	return config
 }
 
-// setDefaultValues recursively sets default values from struct tags
 func (l *loader) setDefaultValues(v reflect.Value) {
 	t := v.Type()
 	

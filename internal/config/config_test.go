@@ -6,7 +6,6 @@ import (
 	"time"
 )
 
-// Test helper to create a test config - define it at the top
 func createTestConfig() *Config {
 	return &Config{
 		Server: ServerConfig{
@@ -152,17 +151,14 @@ func TestDefaultLoadOptions(t *testing.T) {
 func TestConfig_Structure(t *testing.T) {
 	config := createTestConfig()
 	
-	// Test server config
 	if config.Server.Address() != "localhost:8080" {
 		t.Errorf("Expected server address localhost:8080, got %s", config.Server.Address())
 	}
 	
-	// Test logger config
 	if config.Logger.Level != "info" {
 		t.Errorf("Expected logger level info, got %s", config.Logger.Level)
 	}
 	
-	// Test app config
 	if config.App.IsDevelopment() {
 		t.Error("Expected test environment not to be development")
 	}
