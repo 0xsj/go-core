@@ -64,8 +64,8 @@ func (l LogLevel) String() string {
 type LogFormat int
 
 const (
-	FormatPretty LogFormat = iota 
-	FormatJSON                    
+	FormatPretty LogFormat = iota
+	FormatJSON
 )
 
 type LogEntry struct {

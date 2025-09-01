@@ -49,7 +49,7 @@ func TestLogger_BasicLogging(t *testing.T) {
 func TestLogger_LevelFiltering(t *testing.T) {
 	var buf bytes.Buffer
 	config := &LoggerConfig{
-		Level:     LevelWarn, 
+		Level:     LevelWarn,
 		Output:    &buf,
 		Format:    FormatPretty,
 		ShowColor: false,
@@ -305,7 +305,7 @@ func BenchmarkLogger_InfoWithFields(b *testing.B) {
 
 func BenchmarkLogger_LevelFiltered(b *testing.B) {
 	config := &LoggerConfig{
-		Level:      LevelError, 
+		Level:      LevelError,
 		Output:     io.Discard,
 		Format:     FormatPretty,
 		ShowCaller: false,
