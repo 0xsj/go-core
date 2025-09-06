@@ -38,7 +38,7 @@ func (d *DiskChecker) getDiskUsage(path string) (*DiskUsage, error) {
 	blockSize := uint64(stat.Bsize)
 	availableBlocks := stat.Bavail
 	usedBlocks := stat.Blocks - stat.Bfree
-	
+
 	total := (availableBlocks + usedBlocks) * blockSize
 	used := usedBlocks * blockSize
 	available := availableBlocks * blockSize
