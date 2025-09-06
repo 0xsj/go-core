@@ -35,4 +35,5 @@ type HealthManager interface {
 	Stop(ctx context.Context) error
 	GetOverallHealth() HealthResult
 	GetDetailedHealth() map[string]HealthResult
+	RunChecksOnce()
 }

@@ -273,3 +273,7 @@ func max(a, b int) int {
 	}
 	return b
 }
+
+func (m *manager) RunChecksOnce() {
+	m.runAllChecks()
+}
