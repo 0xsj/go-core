@@ -120,6 +120,7 @@ func (l *loader) loadEnvIntoStruct(v reflect.Value, prefix string) error {
 
 		envTag := fieldType.Tag.Get("env")
 		if envTag == "" && field.Kind() == reflect.Struct {
+			// Recursively process nested structs
 			if err := l.loadEnvIntoStruct(field, prefix); err != nil {
 				return err
 			}
@@ -147,7 +148,7 @@ func (l *loader) loadEnvIntoStruct(v reflect.Value, prefix string) error {
 	return nil
 }
 
-func (l *loader) setFieldValue(field reflect.Value, value string, _ reflect.StructField) error {
+func (l *loader) setFieldValue(field reflect.Value, value string, fieldType reflect.StructField) error {
 	switch field.Kind() {
 	case reflect.String:
 		field.SetString(value)
@@ -179,6 +180,26 @@ func (l *loader) setFieldValue(field reflect.Value, value string, _ reflect.Stru
 				return fmt.Errorf("invalid int64 value %s: %w", value, err)
 			}
 			field.SetInt(intVal)
+		}
+
+	case reflect.Slice:
+		// Handle string slices (comma-separated values)
+		if field.Type().Elem().Kind() == reflect.String {
+			if value == "" {
+				field.Set(reflect.MakeSlice(field.Type(), 0, 0))
+				return nil
+			}
+
+			parts := strings.Split(value, ",")
+			slice := reflect.MakeSlice(field.Type(), len(parts), len(parts))
+
+			for i, part := range parts {
+				slice.Index(i).SetString(strings.TrimSpace(part))
+			}
+
+			field.Set(slice)
+		} else {
+			return fmt.Errorf("unsupported slice type: %s", field.Type().Elem().Kind())
 		}
 
 	default:
@@ -222,85 +243,46 @@ func (l *loader) setDefaultValues(v reflect.Value) {
 	}
 }
 
-// Update the mergeConfigs method in internal/config/env.go
 func (l *loader) mergeConfigs(base, override *Config) *Config {
-	// Instead of JSON marshaling, let's do a more intelligent merge
-	result := *base // Start with base config
-
-	// Merge Server config
-	if override.Server.Host != "" {
-		result.Server.Host = override.Server.Host
-	}
-	if override.Server.Port != 0 {
-		result.Server.Port = override.Server.Port
-	}
-	if override.Server.ReadTimeout != 0 {
-		result.Server.ReadTimeout = override.Server.ReadTimeout
-	}
-	if override.Server.WriteTimeout != 0 {
-		result.Server.WriteTimeout = override.Server.WriteTimeout
-	}
-	if override.Server.IdleTimeout != 0 {
-		result.Server.IdleTimeout = override.Server.IdleTimeout
-	}
-
-	// Merge Logger config
-	if override.Logger.Level != "" {
-		result.Logger.Level = override.Logger.Level
-	}
-	if override.Logger.Format != "" {
-		result.Logger.Format = override.Logger.Format
-	}
-	// For booleans, we need to check if they were explicitly set
-	// For now, always override (this is tricky with booleans)
-	result.Logger.ShowCaller = override.Logger.ShowCaller
-	result.Logger.ShowColor = override.Logger.ShowColor
-
-	// Merge Database config
-	if override.Database.Driver != "" {
-		result.Database.Driver = override.Database.Driver
-	}
-	if override.Database.DSN != "" {
-		result.Database.DSN = override.Database.DSN
-	}
-	if override.Database.MaxOpenConns != 0 {
-		result.Database.MaxOpenConns = override.Database.MaxOpenConns
-	}
-	if override.Database.MaxIdleConns != 0 {
-		result.Database.MaxIdleConns = override.Database.MaxIdleConns
-	}
-	if override.Database.ConnMaxLifetime != 0 {
-		result.Database.ConnMaxLifetime = override.Database.ConnMaxLifetime
-	}
-
-	// Merge App config
-	if override.App.Name != "" {
-		result.App.Name = override.App.Name
-	}
-	if override.App.Version != "" {
-		result.App.Version = override.App.Version
-	}
-	if override.App.Environment != "" {
-		result.App.Environment = override.App.Environment
-	}
-	// For Debug boolean, always override
-	result.App.Debug = override.App.Debug
-
-	// Merge Redis config
-	if override.Redis.Host != "" {
-		result.Redis.Host = override.Redis.Host
-	}
-	if override.Redis.Port != 0 {
-		result.Redis.Port = override.Redis.Port
-	}
-	if override.Redis.Password != "" {
-		result.Redis.Password = override.Redis.Password
-	}
-	if override.Redis.DB != 0 {
-		result.Redis.DB = override.Redis.DB
-	}
-
+	result := *base
+	l.mergeStructs(reflect.ValueOf(&result).Elem(), reflect.ValueOf(override).Elem())
 	return &result
+}
+
+func (l *loader) mergeStructs(dst, src reflect.Value) {
+	for i := 0; i < src.NumField(); i++ {
+		srcField := src.Field(i)
+		dstField := dst.Field(i)
+
+		if !dstField.CanSet() {
+			continue
+		}
+
+		switch srcField.Kind() {
+		case reflect.Struct:
+			// Recursively merge nested structs
+			l.mergeStructs(dstField, srcField)
+
+		case reflect.String:
+			if srcField.String() != "" {
+				dstField.SetString(srcField.String())
+			}
+
+		case reflect.Int, reflect.Int64:
+			if srcField.Int() != 0 {
+				dstField.SetInt(srcField.Int())
+			}
+
+		case reflect.Bool:
+			// Always override booleans
+			dstField.SetBool(srcField.Bool())
+
+		case reflect.Slice:
+			if srcField.Len() > 0 {
+				dstField.Set(srcField)
+			}
+		}
+	}
 }
 
 func (l *loader) Validate(config *Config) error {
@@ -384,6 +366,7 @@ func (l *loader) loadEnvFile(filename string) error {
 		}
 	}
 
+	fmt.Printf("DEBUG: Loaded env MIDDLEWARE_CORS_ALLOWED_ORIGINS=%s\n", os.Getenv("MIDDLEWARE_CORS_ALLOWED_ORIGINS"))
 	return scanner.Err()
 }
 
