@@ -12,6 +12,7 @@ install-tools:
 	go install mvdan.cc/gofumpt@latest
 	go install golang.org/x/tools/cmd/goimports@latest
 	go install github.com/cosmtrek/air@latest  # Live reload
+	go install gotest.tools/gotestsum@latest 
 	@echo "✓ Tools installed"
 
 # Code quality
@@ -46,6 +47,12 @@ dev: check
 
 # Testing
 test: check
+	gotestsum --format=short
+
+test-clean: check
+	gotestsum --format=dots
+
+test-verbose: check
 	go test -v ./...
 
 test-coverage: check
