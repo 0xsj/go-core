@@ -26,7 +26,7 @@ func (s ServerConfig) Address() string {
 
 type LoggerConfig struct {
 	Level      string `json:"level" env:"LOG_LEVEL" default:"info"`
-	Format     string `json:"format" env:"LOG_FORMAT" default:"pretty"` // pretty or json
+	Format     string `json:"format" env:"LOG_FORMAT" default:"pretty"`
 	ShowCaller bool   `json:"show_caller" env:"LOG_SHOW_CALLER" default:"true"`
 	ShowColor  bool   `json:"show_color" env:"LOG_SHOW_COLOR" default:"true"`
 }

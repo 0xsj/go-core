@@ -130,19 +130,19 @@ func TestAppConfig_IsProduction(t *testing.T) {
 
 func TestDefaultLoadOptions(t *testing.T) {
 	opts := DefaultLoadOptions()
-	
+
 	if opts.ConfigFile != "" {
 		t.Errorf("Expected empty ConfigFile, got %s", opts.ConfigFile)
 	}
-	
+
 	if opts.EnvPrefix != "" {
 		t.Errorf("Expected empty EnvPrefix, got %s", opts.EnvPrefix)
 	}
-	
+
 	if !opts.AllowEnvOverride {
 		t.Error("Expected AllowEnvOverride to be true")
 	}
-	
+
 	if opts.RequireConfigFile {
 		t.Error("Expected RequireConfigFile to be false")
 	}
@@ -150,19 +150,19 @@ func TestDefaultLoadOptions(t *testing.T) {
 
 func TestConfig_Structure(t *testing.T) {
 	config := createTestConfig()
-	
+
 	if config.Server.Address() != "localhost:8080" {
 		t.Errorf("Expected server address localhost:8080, got %s", config.Server.Address())
 	}
-	
+
 	if config.Logger.Level != "info" {
 		t.Errorf("Expected logger level info, got %s", config.Logger.Level)
 	}
-	
+
 	if config.App.IsDevelopment() {
 		t.Error("Expected test environment not to be development")
 	}
-	
+
 	if config.App.IsProduction() {
 		t.Error("Expected test environment not to be production")
 	}
@@ -173,7 +173,7 @@ func BenchmarkServerConfig_Address(b *testing.B) {
 		Host: "localhost",
 		Port: 8080,
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = config.Address()
@@ -182,7 +182,7 @@ func BenchmarkServerConfig_Address(b *testing.B) {
 
 func BenchmarkAppConfig_IsDevelopment(b *testing.B) {
 	config := AppConfig{Environment: "development"}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = config.IsDevelopment()
