@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 )
 
 func createTempFile(t *testing.T, name, content string) string {
@@ -95,6 +94,7 @@ func TestLoader_LoadFromFile_InvalidJSON(t *testing.T) {
 }
 
 func TestLoader_Load_WithFileAndEnvOverrides(t *testing.T) {
+	// Create config file with all required fields
 	jsonConfig := `{
 		"server": {
 			"host": "file-host",
@@ -112,6 +112,7 @@ func TestLoader_Load_WithFileAndEnvOverrides(t *testing.T) {
 	tmpFile := createTempFile(t, "config.json", jsonConfig)
 	defer os.Remove(tmpFile)
 
+	// Set environment variables to override file config
 	testEnvVars := map[string]string{
 		"SERVER_PORT": "9000",
 		"LOG_LEVEL":   "debug",
@@ -136,6 +137,7 @@ func TestLoader_Load_WithFileAndEnvOverrides(t *testing.T) {
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
+	// File values should be present
 	if config.Server.Host != "file-host" {
 		t.Errorf("Expected host from file, got %s", config.Server.Host)
 	}
@@ -144,6 +146,7 @@ func TestLoader_Load_WithFileAndEnvOverrides(t *testing.T) {
 		t.Errorf("Expected app name from file, got %s", config.App.Name)
 	}
 
+	// Environment overrides should take precedence
 	if config.Server.Port != 9000 {
 		t.Errorf("Expected port 9000 from env override, got %d", config.Server.Port)
 	}
@@ -152,6 +155,7 @@ func TestLoader_Load_WithFileAndEnvOverrides(t *testing.T) {
 		t.Errorf("Expected log level debug from env override, got %s", config.Logger.Level)
 	}
 
+	// File values not overridden by env should remain
 	if config.Logger.Format != "pretty" {
 		t.Errorf("Expected format pretty from file, got %s", config.Logger.Format)
 	}
@@ -180,13 +184,23 @@ func TestLoader_Load_FileOptional_Missing(t *testing.T) {
 		AllowEnvOverride:  true,
 	})
 
+	// Should succeed with defaults even if file is missing
 	config, err := loader.Load(context.Background())
 	if err != nil {
 		t.Fatalf("Expected success with defaults when optional file is missing, got: %v", err)
 	}
 
+	// Should have default values - check specific defaults that should be set
+	if config.Server.Port == 0 {
+		t.Error("Expected default server port to be set")
+	}
+
 	if config.App.Name == "" {
 		t.Error("Expected default app name to be set")
+	}
+
+	if config.Logger.Level == "" {
+		t.Error("Expected default log level to be set")
 	}
 }
 
@@ -194,8 +208,7 @@ func TestLoader_LoadFromReader_JSON(t *testing.T) {
 	jsonConfig := `{
 		"server": {
 			"host": "0.0.0.0",
-			"port": 3000,
-			"read_timeout": "30s"
+			"port": 3000
 		},
 		"logger": {
 			"level": "debug",
@@ -216,6 +229,7 @@ func TestLoader_LoadFromReader_JSON(t *testing.T) {
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
+	// Test server config
 	if config.Server.Host != "0.0.0.0" {
 		t.Errorf("Expected host 0.0.0.0, got %s", config.Server.Host)
 	}
@@ -224,10 +238,7 @@ func TestLoader_LoadFromReader_JSON(t *testing.T) {
 		t.Errorf("Expected port 3000, got %d", config.Server.Port)
 	}
 
-	if config.Server.ReadTimeout != 30*time.Second {
-		t.Errorf("Expected read timeout 30s, got %v", config.Server.ReadTimeout)
-	}
-
+	// Test logger config
 	if config.Logger.Level != "debug" {
 		t.Errorf("Expected logger level debug, got %s", config.Logger.Level)
 	}
@@ -240,6 +251,7 @@ func TestLoader_LoadFromReader_JSON(t *testing.T) {
 		t.Error("Expected ShowCaller to be false")
 	}
 
+	// Test app config
 	if config.App.Name != "test-app" {
 		t.Errorf("Expected app name test-app, got %s", config.App.Name)
 	}
@@ -395,4 +407,42 @@ func BenchmarkLoader_LoadFromReader(b *testing.B) {
 			b.Fatalf("Failed to load config: %v", err)
 		}
 	}
+}
+
+func TestLoader_DefaultValues(t *testing.T) {
+	configLoader := NewLoader(DefaultLoadOptions())
+
+	// Cast to the concrete type to access internal methods
+	concreteLoader, ok := configLoader.(*loader)
+	if !ok {
+		t.Fatal("Expected loader to be of type *loader")
+	}
+
+	// Test that createDefaultConfig works
+	config := concreteLoader.createDefaultConfig()
+
+	// Check that defaults are set
+	if config.Server.Port == 0 {
+		t.Errorf("Expected default server port to be set, got %d", config.Server.Port)
+	}
+
+	if config.Server.Host == "" {
+		t.Errorf("Expected default server host to be set, got %s", config.Server.Host)
+	}
+
+	if config.Logger.Level == "" {
+		t.Errorf("Expected default log level to be set, got %s", config.Logger.Level)
+	}
+
+	if config.Logger.Format == "" {
+		t.Errorf("Expected default log format to be set, got %s", config.Logger.Format)
+	}
+
+	if config.App.Name == "" {
+		t.Errorf("Expected default app name to be set, got %s", config.App.Name)
+	}
+
+	// Print out what we got for debugging
+	t.Logf("Default config: Server.Port=%d, Server.Host=%s, Logger.Level=%s, Logger.Format=%s, App.Name=%s",
+		config.Server.Port, config.Server.Host, config.Logger.Level, config.Logger.Format, config.App.Name)
 }

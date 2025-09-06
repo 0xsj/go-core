@@ -2,11 +2,11 @@
 package config
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"reflect"
 	"slices"
@@ -29,6 +29,10 @@ func NewLoader(options *LoadOptions) Loader {
 }
 
 func (l *loader) Load(ctx context.Context) (*Config, error) {
+	if err := l.loadEnvFile(".env"); err != nil {
+		return nil, fmt.Errorf("failed to load .env file: %w", err)
+	}
+
 	config := l.createDefaultConfig()
 
 	if l.options.ConfigFile != "" {
@@ -68,11 +72,26 @@ func (l *loader) LoadFromFile(filename string) (*Config, error) {
 }
 
 func (l *loader) LoadFromReader(r io.Reader) (*Config, error) {
-	var config Config
+	// First decode into a map to handle duration strings
+	var rawConfig map[string]interface{}
 	decoder := json.NewDecoder(r)
 
-	if err := decoder.Decode(&config); err != nil {
+	if err := decoder.Decode(&rawConfig); err != nil {
 		return nil, fmt.Errorf("failed to parse JSON config: %w", err)
+	}
+
+	// Convert duration strings to proper format
+	l.convertDurationStrings(rawConfig)
+
+	// Marshal back to JSON and decode into Config struct
+	jsonBytes, err := json.Marshal(rawConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal converted config: %w", err)
+	}
+
+	var config Config
+	if err := json.Unmarshal(jsonBytes, &config); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal into Config struct: %w", err)
 	}
 
 	return &config, nil
@@ -175,6 +194,7 @@ func (l *loader) createDefaultConfig() *Config {
 	return config
 }
 
+// Replace your setDefaultValues method with this one that includes better error handling
 func (l *loader) setDefaultValues(v reflect.Value) {
 	t := v.Type()
 
@@ -196,64 +216,91 @@ func (l *loader) setDefaultValues(v reflect.Value) {
 			continue
 		}
 
-		_ = l.setFieldValue(field, defaultTag, fieldType)
+		if err := l.setFieldValue(field, defaultTag, fieldType); err != nil {
+			fmt.Printf("Failed to set default value for field %s: %v\n", fieldType.Name, err)
+		}
 	}
 }
 
+// Update the mergeConfigs method in internal/config/env.go
 func (l *loader) mergeConfigs(base, override *Config) *Config {
-	baseJSON, err := json.Marshal(base)
-	if err != nil {
-		return override
+	// Instead of JSON marshaling, let's do a more intelligent merge
+	result := *base // Start with base config
+
+	// Merge Server config
+	if override.Server.Host != "" {
+		result.Server.Host = override.Server.Host
+	}
+	if override.Server.Port != 0 {
+		result.Server.Port = override.Server.Port
+	}
+	if override.Server.ReadTimeout != 0 {
+		result.Server.ReadTimeout = override.Server.ReadTimeout
+	}
+	if override.Server.WriteTimeout != 0 {
+		result.Server.WriteTimeout = override.Server.WriteTimeout
+	}
+	if override.Server.IdleTimeout != 0 {
+		result.Server.IdleTimeout = override.Server.IdleTimeout
 	}
 
-	overrideJSON, err := json.Marshal(override)
-	if err != nil {
-		return base
+	// Merge Logger config
+	if override.Logger.Level != "" {
+		result.Logger.Level = override.Logger.Level
+	}
+	if override.Logger.Format != "" {
+		result.Logger.Format = override.Logger.Format
+	}
+	// For booleans, we need to check if they were explicitly set
+	// For now, always override (this is tricky with booleans)
+	result.Logger.ShowCaller = override.Logger.ShowCaller
+	result.Logger.ShowColor = override.Logger.ShowColor
+
+	// Merge Database config
+	if override.Database.Driver != "" {
+		result.Database.Driver = override.Database.Driver
+	}
+	if override.Database.DSN != "" {
+		result.Database.DSN = override.Database.DSN
+	}
+	if override.Database.MaxOpenConns != 0 {
+		result.Database.MaxOpenConns = override.Database.MaxOpenConns
+	}
+	if override.Database.MaxIdleConns != 0 {
+		result.Database.MaxIdleConns = override.Database.MaxIdleConns
+	}
+	if override.Database.ConnMaxLifetime != 0 {
+		result.Database.ConnMaxLifetime = override.Database.ConnMaxLifetime
 	}
 
-	var baseMap, overrideMap map[string]interface{}
-
-	if err := json.Unmarshal(baseJSON, &baseMap); err != nil {
-		return override
+	// Merge App config
+	if override.App.Name != "" {
+		result.App.Name = override.App.Name
 	}
-
-	if err := json.Unmarshal(overrideJSON, &overrideMap); err != nil {
-		return base
+	if override.App.Version != "" {
+		result.App.Version = override.App.Version
 	}
-
-	merged := l.mergeMaps(baseMap, overrideMap)
-
-	mergedJSON, err := json.Marshal(merged)
-	if err != nil {
-		return override
+	if override.App.Environment != "" {
+		result.App.Environment = override.App.Environment
 	}
+	// For Debug boolean, always override
+	result.App.Debug = override.App.Debug
 
-	var result Config
-	if err := json.Unmarshal(mergedJSON, &result); err != nil {
-		return override
+	// Merge Redis config
+	if override.Redis.Host != "" {
+		result.Redis.Host = override.Redis.Host
+	}
+	if override.Redis.Port != 0 {
+		result.Redis.Port = override.Redis.Port
+	}
+	if override.Redis.Password != "" {
+		result.Redis.Password = override.Redis.Password
+	}
+	if override.Redis.DB != 0 {
+		result.Redis.DB = override.Redis.DB
 	}
 
 	return &result
-}
-
-func (l *loader) mergeMaps(base, override map[string]any) map[string]any {
-	result := make(map[string]any)
-
-	maps.Copy(result, base)
-
-	for k, v := range override {
-		if baseVal, exists := result[k]; exists {
-			if baseMap, ok := baseVal.(map[string]any); ok {
-				if overrideMap, ok := v.(map[string]any); ok {
-					result[k] = l.mergeMaps(baseMap, overrideMap)
-					continue
-				}
-			}
-		}
-		result[k] = v
-	}
-
-	return result
 }
 
 func (l *loader) Validate(config *Config) error {
@@ -304,4 +351,53 @@ func (l *loader) Validate(config *Config) error {
 
 func contains(slice []string, item string) bool {
 	return slices.Contains(slice, item)
+}
+
+func (l *loader) loadEnvFile(filename string) error {
+	file, err := os.Open(filename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to open .env file: %w", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		if os.Getenv(key) == "" {
+			os.Setenv(key, value)
+		}
+	}
+
+	return scanner.Err()
+}
+
+func (l *loader) convertDurationStrings(data map[string]any) {
+	for key, value := range data {
+		switch v := value.(type) {
+		case map[string]any:
+			l.convertDurationStrings(v)
+		case string:
+			if strings.HasSuffix(key, "_timeout") || strings.HasSuffix(key, "_lifetime") {
+				if duration, err := time.ParseDuration(v); err == nil {
+					data[key] = duration.Nanoseconds()
+				}
+			}
+		}
+	}
 }

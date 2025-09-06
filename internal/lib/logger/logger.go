@@ -168,14 +168,13 @@ func NewLogger(config *LoggerConfig) Logger {
 		config = DefaultConfig()
 	}
 
-	// Make sure Output is set
 	if config.Output == nil {
 		config.Output = os.Stdout
 	}
 
 	return &logger{
 		config: config,
-		fields: make(map[string]interface{}),
+		fields: make(map[string]any),
 		ctx:    nil,
 	}
 }

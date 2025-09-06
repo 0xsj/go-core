@@ -10,6 +10,7 @@ type Config struct {
 	Logger   LoggerConfig   `json:"logger"`
 	Database DatabaseConfig `json:"database"`
 	App      AppConfig      `json:"app"`
+	Redis    RedisConfig    `json:"redis"`
 }
 
 type ServerConfig struct {
@@ -18,6 +19,13 @@ type ServerConfig struct {
 	ReadTimeout  time.Duration `json:"read_timeout" env:"SERVER_READ_TIMEOUT" default:"15s"`
 	WriteTimeout time.Duration `json:"write_timeout" env:"SERVER_WRITE_TIMEOUT" default:"15s"`
 	IdleTimeout  time.Duration `json:"idle_timeout" env:"SERVER_IDLE_TIMEOUT" default:"60s"`
+}
+
+type RedisConfig struct {
+	Host     string `json:"host" env:"REDIS_HOST" default:"localhost"`
+	Port     int    `json:"port" env:"REDIS_PORT" default:"6379"`
+	Password string `json:"password" env:"REDIS_PASSWORD" default:""`
+	DB       int    `json:"db" env:"REDIS_DB" default:"0"`
 }
 
 func (s ServerConfig) Address() string {
