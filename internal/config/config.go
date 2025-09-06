@@ -10,6 +10,7 @@ type Config struct {
 	Logger   LoggerConfig   `json:"logger"`
 	Database DatabaseConfig `json:"database"`
 	App      AppConfig      `json:"app"`
+	Redis    RedisConfig    `json:"redis"`
 }
 
 type ServerConfig struct {
@@ -20,13 +21,20 @@ type ServerConfig struct {
 	IdleTimeout  time.Duration `json:"idle_timeout" env:"SERVER_IDLE_TIMEOUT" default:"60s"`
 }
 
+type RedisConfig struct {
+	Host     string `json:"host" env:"REDIS_HOST" default:"localhost"`
+	Port     int    `json:"port" env:"REDIS_PORT" default:"6379"`
+	Password string `json:"password" env:"REDIS_PASSWORD" default:""`
+	DB       int    `json:"db" env:"REDIS_DB" default:"0"`
+}
+
 func (s ServerConfig) Address() string {
 	return fmt.Sprintf("%s:%d", s.Host, s.Port)
 }
 
 type LoggerConfig struct {
 	Level      string `json:"level" env:"LOG_LEVEL" default:"info"`
-	Format     string `json:"format" env:"LOG_FORMAT" default:"pretty"` // pretty or json
+	Format     string `json:"format" env:"LOG_FORMAT" default:"pretty"`
 	ShowCaller bool   `json:"show_caller" env:"LOG_SHOW_CALLER" default:"true"`
 	ShowColor  bool   `json:"show_color" env:"LOG_SHOW_COLOR" default:"true"`
 }
