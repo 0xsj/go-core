@@ -142,10 +142,6 @@ func (c *Container) Build() error {
         return fmt.Errorf("circular dependency detected: %w", err)
     }
 
-    if err := c.initializeEagerSingletons(); err != nil {
-        return fmt.Errorf("singleton initialization failed: %w", err)
-    }
-
     c.built = true
     return nil
 }
@@ -181,7 +177,7 @@ func (c *Container) buildDependencyGraph() error {
 
 func (c *Container) analyzeDependencies(provider any) ([]reflect.Type, error) {
     providerType := reflect.TypeOf(provider)
-    if providerType.Kind() == reflect.Pointer {
+    if providerType.Kind() == reflect.Ptr {
         providerType = providerType.Elem()
     }
 
@@ -240,18 +236,10 @@ func (c *Container) detectCircularDependencies() error {
             }
         }
     }
+
     if processed != len(c.services) {
         return fmt.Errorf("circular dependency detected in service graph")
     }
 
-    return nil
-}
-
-func (c *Container) initializeEagerSingletons() error {
-    for serviceType, service := range c.services {
-        if service.Scope == ScopeSingleton && len(service.Dependencies) == 0 {
-            _ = serviceType 
-        }
-    }
     return nil
 }

@@ -2,6 +2,7 @@
 package container
 
 import (
+	"context"
 	"reflect"
 	"time"
 )
@@ -35,7 +36,19 @@ type ServiceInfo struct {
     Type         reflect.Type
     Scope        ServiceScope
     Provider     any
-    Dependencies []reflect.Type 
-    Instance     any            
+    Dependencies []reflect.Type // For dependency graph analysis
+    Instance     any            // For singletons
     CreatedAt    time.Time
+}
+
+type Startable interface {
+    Start(ctx context.Context) error
+}
+
+type Stoppable interface {
+    Stop(ctx context.Context) error
+}
+
+type HealthCheckable interface {
+    HealthCheck(ctx context.Context) error
 }
