@@ -147,8 +147,23 @@ func (m *CORSMiddleware) isOriginAllowed(origin string) bool {
 
 		// Support wildcard subdomains (e.g., *.example.com)
 		if strings.HasPrefix(allowedOrigin, "*.") {
-			domain := allowedOrigin[2:]
-			if strings.HasSuffix(origin, "."+domain) || origin == domain {
+			domain := allowedOrigin[2:] // Remove "*."
+
+			// Extract hostname from origin (remove protocol and port)
+			originHost := origin
+			if strings.HasPrefix(originHost, "http://") {
+				originHost = originHost[7:]
+			} else if strings.HasPrefix(originHost, "https://") {
+				originHost = originHost[8:]
+			}
+
+			// Remove port if present
+			if colonIndex := strings.Index(originHost, ":"); colonIndex != -1 {
+				originHost = originHost[:colonIndex]
+			}
+
+			// Check if it matches the domain or is a subdomain
+			if originHost == domain || strings.HasSuffix(originHost, "."+domain) {
 				return true
 			}
 		}

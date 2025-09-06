@@ -125,7 +125,7 @@ func createMiddlewareChain(cfg *config.Config, appLogger logger.Logger) *middlew
 	if err != nil {
 		windowSize = time.Minute
 	}
-	
+
 	rateLimitMw := middleware.NewRateLimitMiddleware(&middleware.RateLimitConfig{
 		Enabled:        cfg.Middleware.RateLimit.Enabled,
 		RequestsPerMin: cfg.Middleware.RateLimit.RequestsPerMin,

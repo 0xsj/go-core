@@ -24,9 +24,9 @@ type RateLimitConfig struct {
 
 // RateLimitMiddleware provides rate limiting functionality
 type RateLimitMiddleware struct {
-	config     *RateLimitConfig
-	limiter    *TokenBucketLimiter
-	skipPaths  map[string]bool
+	config    *RateLimitConfig
+	limiter   *TokenBucketLimiter
+	skipPaths map[string]bool
 }
 
 // NewRateLimitMiddleware creates a new rate limiting middleware
@@ -42,15 +42,15 @@ func NewRateLimitMiddleware(config *RateLimitConfig) *RateLimitMiddleware {
 			HeadersEnabled: true,
 		}
 	}
-	
+
 	// Convert skip paths to map for O(1) lookup
 	skipPaths := make(map[string]bool)
 	for _, path := range config.SkipPaths {
 		skipPaths[path] = true
 	}
-	
+
 	limiter := NewTokenBucketLimiter(config.RequestsPerMin, config.BurstSize, config.WindowSize)
-	
+
 	return &RateLimitMiddleware{
 		config:    config,
 		limiter:   limiter,
@@ -82,23 +82,23 @@ func (m *RateLimitMiddleware) Handler() func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-			
+
 			// Get rate limit key
 			key := m.getRateLimitKey(r)
-			
+
 			// Check rate limit
 			allowed, remaining, resetTime := m.limiter.Allow(key)
-			
+
 			// Add rate limit headers if enabled
 			if m.config.HeadersEnabled {
 				m.setRateLimitHeaders(w, remaining, resetTime)
 			}
-			
+
 			if !allowed {
 				m.handleRateLimitExceeded(w, r)
 				return
 			}
-			
+
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -133,20 +133,20 @@ func (m *RateLimitMiddleware) getClientIP(r *http.Request) string {
 			return ip.String()
 		}
 	}
-	
+
 	// Check X-Real-IP header
 	if xri := r.Header.Get("X-Real-IP"); xri != "" {
 		if ip := net.ParseIP(xri); ip != nil {
 			return ip.String()
 		}
 	}
-	
+
 	// Use remote address as fallback
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr
 	}
-	
+
 	return host
 }
 
@@ -157,49 +157,52 @@ func (m *RateLimitMiddleware) setRateLimitHeaders(w http.ResponseWriter, remaini
 	w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(resetTime.Unix(), 10))
 }
 
-// handleRateLimitExceeded responds when rate limit is exceeded
 func (m *RateLimitMiddleware) handleRateLimitExceeded(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusTooManyRequests)
-	
+
 	response := fmt.Sprintf(`{
 	"error": "Rate Limit Exceeded",
 	"message": "Too many requests. Maximum %d requests per minute allowed.",
 	"retry_after": %d
 }`, m.config.RequestsPerMin, int(m.config.WindowSize.Seconds()))
-	
-	w.Write([]byte(response))
+
+	if _, err := w.Write([]byte(response)); err != nil {
+		// Log the error but don't panic - we're already handling an error condition
+		// In a real implementation, you might want to log this to your logger
+		_ = err // Acknowledge we're intentionally ignoring this specific error
+	}
 }
 
 // TokenBucketLimiter implements token bucket rate limiting
 type TokenBucketLimiter struct {
-	rate       int           // tokens per window
-	burst      int           // bucket size
-	window     time.Duration // time window
-	buckets    map[string]*bucket
-	mu         sync.RWMutex
+	rate          int           // tokens per window
+	burst         int           // bucket size
+	window        time.Duration // time window
+	buckets       map[string]*bucket
+	mu            sync.RWMutex
 	cleanupTicker *time.Ticker
 }
 
 type bucket struct {
-	tokens   int
-	lastSeen time.Time
+	tokens    int
+	lastSeen  time.Time
 	resetTime time.Time
 }
 
 // NewTokenBucketLimiter creates a new token bucket limiter
 func NewTokenBucketLimiter(rate, burst int, window time.Duration) *TokenBucketLimiter {
 	limiter := &TokenBucketLimiter{
-		rate:    rate,
-		burst:   burst,
-		window:  window,
-		buckets: make(map[string]*bucket),
+		rate:          rate,
+		burst:         burst,
+		window:        window,
+		buckets:       make(map[string]*bucket),
 		cleanupTicker: time.NewTicker(time.Minute),
 	}
-	
+
 	// Start cleanup goroutine
 	go limiter.cleanup()
-	
+
 	return limiter
 }
 
@@ -207,29 +210,29 @@ func NewTokenBucketLimiter(rate, burst int, window time.Duration) *TokenBucketLi
 func (l *TokenBucketLimiter) Allow(key string) (allowed bool, remaining int, resetTime time.Time) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	
+
 	now := time.Now()
 	b, exists := l.buckets[key]
-	
+
 	if !exists || now.Sub(b.resetTime) >= 0 {
 		// Create new bucket or reset existing one
 		b = &bucket{
-			tokens:   l.burst - 1, // Consume one token for this request
-			lastSeen: now,
+			tokens:    l.burst - 1, // Consume one token for this request
+			lastSeen:  now,
 			resetTime: now.Add(l.window),
 		}
 		l.buckets[key] = b
 		return true, b.tokens, b.resetTime
 	}
-	
+
 	// Update last seen
 	b.lastSeen = now
-	
+
 	if b.tokens > 0 {
 		b.tokens--
 		return true, b.tokens, b.resetTime
 	}
-	
+
 	return false, 0, b.resetTime
 }
 
@@ -238,14 +241,14 @@ func (l *TokenBucketLimiter) cleanup() {
 	for range l.cleanupTicker.C {
 		l.mu.Lock()
 		now := time.Now()
-		
+
 		for key, bucket := range l.buckets {
 			// Remove buckets that haven't been seen for 2x the window duration
 			if now.Sub(bucket.lastSeen) > l.window*2 {
 				delete(l.buckets, key)
 			}
 		}
-		
+
 		l.mu.Unlock()
 	}
 }
