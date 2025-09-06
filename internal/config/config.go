@@ -12,6 +12,7 @@ type Config struct {
 	Middleware MiddlewareConfig `json:"middleware"`
 	App        AppConfig        `json:"app"`
 	Redis      RedisConfig      `json:"redis"`
+	Health     HealthConfig     `json:"health"`
 }
 
 type ServerConfig struct {
@@ -29,6 +30,21 @@ type MiddlewareConfig struct {
 	CORS            CORSConfig            `json:"cors"`
 	SecurityHeaders SecurityHeadersConfig `json:"security_headers"`
 	RateLimit       RateLimitConfig       `json:"rate_limit"`
+}
+
+type HealthConfig struct {
+	CheckInterval        string  `json:"check_interval" env:"HEALTH_CHECK_INTERVAL" default:"30s"`
+	CheckTimeout         string  `json:"check_timeout" env:"HEALTH_CHECK_TIMEOUT" default:"5s"`
+	EnableBackground     bool    `json:"enable_background" env:"HEALTH_ENABLE_BACKGROUND" default:"true"`
+	EnableMemoryCheck    bool    `json:"enable_memory_check" env:"HEALTH_ENABLE_MEMORY_CHECK" default:"true"`
+	EnableGoroutineCheck bool    `json:"enable_goroutine_check" env:"HEALTH_ENABLE_GOROUTINE_CHECK" default:"true"`
+	EnableUptimeCheck    bool    `json:"enable_uptime_check" env:"HEALTH_ENABLE_UPTIME_CHECK" default:"true"`
+	EnableDiskCheck      bool    `json:"enable_disk_check" env:"HEALTH_ENABLE_DISK_CHECK" default:"true"`
+	MaxHeapMB            uint64  `json:"max_heap_mb" env:"HEALTH_MAX_HEAP_MB" default:"512"`
+	MaxGoroutines        int     `json:"max_goroutines" env:"HEALTH_MAX_GOROUTINES" default:"1000"`
+	DiskPath             string  `json:"disk_path" env:"HEALTH_DISK_PATH" default:"/"`
+	DiskWarnPercent      float64 `json:"disk_warn_percent" env:"HEALTH_DISK_WARN_PERCENT" default:"80"`
+	DiskCriticalPercent  float64 `json:"disk_critical_percent" env:"HEALTH_DISK_CRITICAL_PERCENT" default:"95"`
 }
 
 type RateLimitConfig struct {

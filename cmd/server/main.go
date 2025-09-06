@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/0xsj/go-core/internal/config"
 	"github.com/0xsj/go-core/internal/container"
 	"github.com/0xsj/go-core/internal/lib/logger"
+	"github.com/0xsj/go-core/internal/lib/monitoring/health"
 	"github.com/0xsj/go-core/internal/middleware"
 )
 
@@ -42,6 +44,36 @@ func main() {
 	cfg := container.Resolve[*config.Config](c)
 	appLogger := container.Resolve[logger.Logger](c)
 
+	// Create health manager manually after dependencies are available
+	log.Println("🏥 Creating health manager...")
+	healthManager := health.NewManager(&cfg.Health, appLogger)
+
+	// Register default checkers
+	if cfg.Health.EnableMemoryCheck {
+		healthManager.RegisterChecker(health.NewMemoryChecker(cfg.Health.MaxHeapMB))
+	}
+	if cfg.Health.EnableGoroutineCheck {
+		healthManager.RegisterChecker(health.NewGoroutineChecker(cfg.Health.MaxGoroutines))
+	}
+	if cfg.Health.EnableUptimeCheck {
+		healthManager.RegisterChecker(health.NewUptimeChecker())
+	}
+
+	if cfg.Health.EnableDiskCheck {
+		diskChecker := health.NewDiskChecker(
+			cfg.Health.DiskPath,
+			cfg.Health.DiskWarnPercent,
+			cfg.Health.DiskCriticalPercent,
+		)
+		healthManager.RegisterChecker(diskChecker)
+	}
+
+	// Start health manager
+	log.Println("🏥 Starting health manager...")
+	if err := healthManager.Start(ctx); err != nil {
+		appLogger.Fatal("Failed to start health manager", logger.Err(err))
+	}
+
 	// Create middleware chain manually after all dependencies are resolved
 	log.Println("🔗 Creating middleware chain...")
 	middlewareChain := createMiddlewareChain(cfg, appLogger)
@@ -56,11 +88,16 @@ func main() {
 	)
 
 	log.Println("🌐 Creating HTTP server...")
-	app := NewApp(cfg, appLogger, middlewareChain)
+	app := NewApp(cfg, appLogger, middlewareChain, healthManager)
 
 	log.Printf("🎯 About to start server on %s", cfg.Server.Address())
 	if err := app.Start(ctx); err != nil {
 		appLogger.Fatal("💥 Failed to start server", logger.Err(err))
+	}
+
+	appLogger.Info("🏥 Stopping health manager...")
+	if err := healthManager.Stop(context.Background()); err != nil {
+		appLogger.Error("Error stopping health manager", logger.Err(err))
 	}
 
 	appLogger.Info("🛑 Shutting down container...")
@@ -142,17 +179,17 @@ func createMiddlewareChain(cfg *config.Config, appLogger logger.Logger) *middlew
 func setupContainer(c *container.Container) error {
 	log.Println("  ⚙️  Registering config provider...")
 	configProvider := config.NewProvider()
-	if err := container.RegisterSingleton[*config.Config](c, configProvider); err != nil {
+	if err := container.RegisterSingleton(c, configProvider); err != nil {
 		return fmt.Errorf("failed to register config: %w", err)
 	}
 
 	log.Println("  📝 Registering logger provider...")
 	loggerProvider := logger.NewProvider(c)
-	if err := container.RegisterSingleton[logger.Logger](c, loggerProvider); err != nil {
+	if err := container.RegisterSingleton(c, loggerProvider); err != nil {
 		return fmt.Errorf("failed to register logger: %w", err)
 	}
 
-	// Remove the middleware provider registration - we'll create it manually after container is built
+	// Health manager is created manually after dependencies are available
 
 	log.Println("  ✅ All services registered")
 	return nil
@@ -160,14 +197,17 @@ func setupContainer(c *container.Container) error {
 
 // App struct for HTTP server
 type App struct {
-	server *http.Server
-	logger logger.Logger
-	config *config.Config
+	server        *http.Server
+	logger        logger.Logger
+	config        *config.Config
+	healthManager health.HealthManager
 }
 
-func NewApp(cfg *config.Config, appLogger logger.Logger, middlewareChain *middleware.Chain) *App {
+func NewApp(cfg *config.Config, appLogger logger.Logger, middlewareChain *middleware.Chain, healthManager health.HealthManager) *App {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/health", healthHandler)
+
+	// Create health handler with actual health manager
+	mux.HandleFunc("/health", createHealthHandler(healthManager))
 	mux.HandleFunc("/", rootHandler)
 
 	// Add test panic endpoint for testing recovery
@@ -194,9 +234,10 @@ func NewApp(cfg *config.Config, appLogger logger.Logger, middlewareChain *middle
 	)
 
 	return &App{
-		server: server,
-		logger: appLogger,
-		config: cfg,
+		server:        server,
+		logger:        appLogger,
+		config:        cfg,
+		healthManager: healthManager,
 	}
 }
 
@@ -227,9 +268,39 @@ func (a *App) Start(ctx context.Context) error {
 	return nil
 }
 
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, "OK")
+func createHealthHandler(healthManager health.HealthManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.URL.Query().Get("detailed") == "true" {
+			// Return detailed health status
+			detailed := healthManager.GetDetailedHealth()
+			if err := json.NewEncoder(w).Encode(detailed); err != nil {
+				http.Error(w, "Failed to encode health response", http.StatusInternalServerError)
+				return
+			}
+		} else {
+			// Return overall health status
+			overall := healthManager.GetOverallHealth()
+
+			// Set HTTP status based on health
+			switch overall.Status {
+			case health.StatusHealthy:
+				w.WriteHeader(http.StatusOK)
+			case health.StatusDegraded:
+				w.WriteHeader(http.StatusOK) // Still OK, but degraded
+			case health.StatusUnhealthy:
+				w.WriteHeader(http.StatusServiceUnavailable)
+			default:
+				w.WriteHeader(http.StatusServiceUnavailable)
+			}
+
+			if err := json.NewEncoder(w).Encode(overall); err != nil {
+				http.Error(w, "Failed to encode health response", http.StatusInternalServerError)
+				return
+			}
+		}
+	}
 }
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {

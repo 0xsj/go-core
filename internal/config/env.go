@@ -182,6 +182,20 @@ func (l *loader) setFieldValue(field reflect.Value, value string, fieldType refl
 			field.SetInt(intVal)
 		}
 
+	case reflect.Uint64:
+		uintVal, err := strconv.ParseUint(value, 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid uint64 value %s: %w", value, err)
+		}
+		field.SetUint(uintVal)
+
+	case reflect.Float64: // Add this case
+		floatVal, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("invalid float64 value %s: %w", value, err)
+		}
+		field.SetFloat(floatVal)
+
 	case reflect.Slice:
 		// Handle string slices (comma-separated values)
 		if field.Type().Elem().Kind() == reflect.String {
