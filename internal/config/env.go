@@ -226,6 +226,11 @@ func (l *loader) setFieldValue(field reflect.Value, value string, fieldType refl
 func (l *loader) createDefaultConfig() *Config {
 	config := &Config{}
 	l.setDefaultValues(reflect.ValueOf(config).Elem())
+
+	if len(config.Queue.Queues) == 0 {
+		config.Queue.Queues = GetDefaultQueues()
+	}
+
 	return config
 }
 

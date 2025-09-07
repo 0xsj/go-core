@@ -13,6 +13,7 @@ type Config struct {
 	App        AppConfig        `json:"app"`
 	Redis      RedisConfig      `json:"redis"`
 	Health     HealthConfig     `json:"health"`
+	Queue      QueueConfig      `json:"queue"`
 }
 
 type ServerConfig struct {
@@ -106,6 +107,74 @@ type RecoveryConfig struct {
 	IncludeStackInDev bool `json:"include_stack_in_dev" env:"MIDDLEWARE_RECOVERY_DEV_STACK" default:"true"`
 }
 
+type QueueConfig struct {
+	Enabled bool                `json:"enabled" env:"QUEUE_ENABLED" default:"true"`
+	Redis   QueueRedisConfig    `json:"redis"`
+	Queues  map[string]QueueDef `json:"queues"`
+	Global  QueueGlobalConfig   `json:"global"`
+}
+
+type QueueDef struct {
+	Name            string `json:"name"`
+	Enabled         bool   `json:"enabled" env:"QUEUE_${NAME}_ENABLED" default:"true"`
+	Workers         int    `json:"workers" env:"QUEUE_${NAME}_WORKERS" default:"2"`
+	MinWorkers      int    `json:"min_workers" env:"QUEUE_${NAME}_MIN_WORKERS" default:"1"`
+	MaxWorkers      int    `json:"max_workers" env:"QUEUE_${NAME}_MAX_WORKERS" default:"10"`
+	AutoScale       bool   `json:"auto_scale" env:"QUEUE_${NAME}_AUTO_SCALE" default:"true"`
+	MaxLength       int64  `json:"max_length" env:"QUEUE_${NAME}_MAX_LENGTH" default:"100000"`
+	PrefetchCount   int    `json:"prefetch_count" env:"QUEUE_${NAME}_PREFETCH" default:"1"`
+	Priority        string `json:"priority" env:"QUEUE_${NAME}_PRIORITY" default:"normal"`
+	EnableScheduled bool   `json:"enable_scheduled" env:"QUEUE_${NAME}_SCHEDULED" default:"true"`
+	EnableDLQ       bool   `json:"enable_dlq" env:"QUEUE_${NAME}_DLQ" default:"true"`
+	DLQMaxSize      int64  `json:"dlq_max_size" env:"QUEUE_${NAME}_DLQ_MAX_SIZE" default:"10000"`
+}
+
+type QueueGlobalConfig struct {
+	// Global settings that apply to all queues
+	DefaultTimeout    string  `json:"default_timeout" env:"QUEUE_DEFAULT_TIMEOUT" default:"30m"`
+	MaxRetries        int     `json:"max_retries" env:"QUEUE_MAX_RETRIES" default:"3"`
+	RetryInitialDelay string  `json:"retry_initial_delay" env:"QUEUE_RETRY_INITIAL_DELAY" default:"1s"`
+	RetryMaxDelay     string  `json:"retry_max_delay" env:"QUEUE_RETRY_MAX_DELAY" default:"1h"`
+	RetryMultiplier   float64 `json:"retry_multiplier" env:"QUEUE_RETRY_MULTIPLIER" default:"2.0"`
+
+	// Worker settings
+	ShutdownTimeout     string `json:"shutdown_timeout" env:"QUEUE_SHUTDOWN_TIMEOUT" default:"30s"`
+	HealthCheckInterval string `json:"health_check_interval" env:"QUEUE_HEALTH_CHECK_INTERVAL" default:"10s"`
+
+	// Monitoring
+	MetricsEnabled  bool   `json:"metrics_enabled" env:"QUEUE_METRICS_ENABLED" default:"true"`
+	MetricsInterval string `json:"metrics_interval" env:"QUEUE_METRICS_INTERVAL" default:"10s"`
+
+	// Dead Letter Queue
+	DLQEnabled       bool `json:"dlq_enabled" env:"QUEUE_DLQ_ENABLED" default:"true"`
+	DLQRetentionDays int  `json:"dlq_retention_days" env:"QUEUE_DLQ_RETENTION_DAYS" default:"7"`
+
+	// Scheduled Jobs
+	ScheduledEnabled      bool   `json:"scheduled_enabled" env:"QUEUE_SCHEDULED_ENABLED" default:"true"`
+	ScheduledPollInterval string `json:"scheduled_poll_interval" env:"QUEUE_SCHEDULED_POLL_INTERVAL" default:"10s"`
+
+	// Auto-scaling
+	ScaleUpThreshold   int    `json:"scale_up_threshold" env:"QUEUE_SCALE_UP_THRESHOLD" default:"100"`
+	ScaleDownThreshold int    `json:"scale_down_threshold" env:"QUEUE_SCALE_DOWN_THRESHOLD" default:"10"`
+	ScaleInterval      string `json:"scale_interval" env:"QUEUE_SCALE_INTERVAL" default:"30s"`
+
+	// Circuit Breaker
+	CircuitBreakerEnabled   bool   `json:"circuit_breaker_enabled" env:"QUEUE_CIRCUIT_BREAKER_ENABLED" default:"true"`
+	CircuitBreakerThreshold int    `json:"circuit_breaker_threshold" env:"QUEUE_CIRCUIT_BREAKER_THRESHOLD" default:"5"`
+	CircuitBreakerTimeout   string `json:"circuit_breaker_timeout" env:"QUEUE_CIRCUIT_BREAKER_TIMEOUT" default:"60s"`
+}
+
+type QueueRedisConfig struct {
+	// Can use the main Redis config or separate
+	UseMainRedis bool   `json:"use_main_redis" env:"QUEUE_USE_MAIN_REDIS" default:"true"`
+	Host         string `json:"host" env:"QUEUE_REDIS_HOST" default:"localhost"`
+	Port         int    `json:"port" env:"QUEUE_REDIS_PORT" default:"6379"`
+	Password     string `json:"password" env:"QUEUE_REDIS_PASSWORD" default:""`
+	DB           int    `json:"db" env:"QUEUE_REDIS_DB" default:"1"` // Different DB for queues
+	MaxRetries   int    `json:"max_retries" env:"QUEUE_REDIS_MAX_RETRIES" default:"3"`
+	PoolSize     int    `json:"pool_size" env:"QUEUE_REDIS_POOL_SIZE" default:"10"`
+}
+
 type RedisConfig struct {
 	Host     string `json:"host" env:"REDIS_HOST" default:"localhost"`
 	Port     int    `json:"port" env:"REDIS_PORT" default:"6379"`
@@ -145,4 +214,64 @@ func (a AppConfig) IsDevelopment() bool {
 
 func (a AppConfig) IsProduction() bool {
 	return a.Environment == "production" || a.Environment == "prod"
+}
+
+func (c QueueConfig) GetQueueDef(name string) (QueueDef, bool) {
+	if c.Queues == nil {
+		return QueueDef{}, false
+	}
+	q, exists := c.Queues[name]
+	return q, exists
+}
+
+func (c QueueConfig) IsEnabled() bool {
+	return c.Enabled
+}
+
+// GetDefaultQueues returns default queue definitions if none are configured
+func GetDefaultQueues() map[string]QueueDef {
+	return map[string]QueueDef{
+		"default": {
+			Name:            "default",
+			Enabled:         true,
+			Workers:         2,
+			MinWorkers:      1,
+			MaxWorkers:      10,
+			AutoScale:       true,
+			MaxLength:       100000,
+			PrefetchCount:   1,
+			Priority:        "normal",
+			EnableScheduled: true,
+			EnableDLQ:       true,
+			DLQMaxSize:      10000,
+		},
+		"high": {
+			Name:            "high",
+			Enabled:         true,
+			Workers:         4,
+			MinWorkers:      2,
+			MaxWorkers:      20,
+			AutoScale:       true,
+			MaxLength:       50000,
+			PrefetchCount:   1,
+			Priority:        "high",
+			EnableScheduled: true,
+			EnableDLQ:       true,
+			DLQMaxSize:      5000,
+		},
+		"low": {
+			Name:            "low",
+			Enabled:         true,
+			Workers:         1,
+			MinWorkers:      1,
+			MaxWorkers:      5,
+			AutoScale:       false,
+			MaxLength:       200000,
+			PrefetchCount:   5,
+			Priority:        "low",
+			EnableScheduled: true,
+			EnableDLQ:       true,
+			DLQMaxSize:      20000,
+		},
+	}
 }
