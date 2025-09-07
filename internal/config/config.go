@@ -135,38 +135,41 @@ type QueueDef struct {
 }
 
 type QueueGlobalConfig struct {
-	// Global settings that apply to all queues
-	DefaultTimeout    string  `json:"default_timeout" env:"QUEUE_DEFAULT_TIMEOUT" default:"30m"`
-	MaxRetries        int     `json:"max_retries" env:"QUEUE_MAX_RETRIES" default:"3"`
-	RetryInitialDelay string  `json:"retry_initial_delay" env:"QUEUE_RETRY_INITIAL_DELAY" default:"1s"`
-	RetryMaxDelay     string  `json:"retry_max_delay" env:"QUEUE_RETRY_MAX_DELAY" default:"1h"`
-	RetryMultiplier   float64 `json:"retry_multiplier" env:"QUEUE_RETRY_MULTIPLIER" default:"2.0"`
-
-	// Worker settings
-	ShutdownTimeout     string `json:"shutdown_timeout" env:"QUEUE_SHUTDOWN_TIMEOUT" default:"30s"`
-	HealthCheckInterval string `json:"health_check_interval" env:"QUEUE_HEALTH_CHECK_INTERVAL" default:"10s"`
-
-	// Monitoring
-	MetricsEnabled  bool   `json:"metrics_enabled" env:"QUEUE_METRICS_ENABLED" default:"true"`
-	MetricsInterval string `json:"metrics_interval" env:"QUEUE_METRICS_INTERVAL" default:"10s"`
-
-	// Dead Letter Queue
-	DLQEnabled       bool `json:"dlq_enabled" env:"QUEUE_DLQ_ENABLED" default:"true"`
-	DLQRetentionDays int  `json:"dlq_retention_days" env:"QUEUE_DLQ_RETENTION_DAYS" default:"7"`
-
-	// Scheduled Jobs
-	ScheduledEnabled      bool   `json:"scheduled_enabled" env:"QUEUE_SCHEDULED_ENABLED" default:"true"`
-	ScheduledPollInterval string `json:"scheduled_poll_interval" env:"QUEUE_SCHEDULED_POLL_INTERVAL" default:"10s"`
-
-	// Auto-scaling
-	ScaleUpThreshold   int    `json:"scale_up_threshold" env:"QUEUE_SCALE_UP_THRESHOLD" default:"100"`
-	ScaleDownThreshold int    `json:"scale_down_threshold" env:"QUEUE_SCALE_DOWN_THRESHOLD" default:"10"`
-	ScaleInterval      string `json:"scale_interval" env:"QUEUE_SCALE_INTERVAL" default:"30s"`
-
-	// Circuit Breaker
-	CircuitBreakerEnabled   bool   `json:"circuit_breaker_enabled" env:"QUEUE_CIRCUIT_BREAKER_ENABLED" default:"true"`
-	CircuitBreakerThreshold int    `json:"circuit_breaker_threshold" env:"QUEUE_CIRCUIT_BREAKER_THRESHOLD" default:"5"`
-	CircuitBreakerTimeout   string `json:"circuit_breaker_timeout" env:"QUEUE_CIRCUIT_BREAKER_TIMEOUT" default:"60s"`
+    // Timeouts
+    DefaultTimeout      string  `json:"default_timeout" env:"QUEUE_DEFAULT_TIMEOUT" default:"30m"`
+    ShutdownTimeout     string  `json:"shutdown_timeout" env:"QUEUE_SHUTDOWN_TIMEOUT" default:"30s"`
+    
+    // Retry
+    MaxRetries          int     `json:"max_retries" env:"QUEUE_MAX_RETRIES" default:"3"`
+    RetryInitialDelay   string  `json:"retry_initial_delay" env:"QUEUE_RETRY_INITIAL_DELAY" default:"1s"`
+    RetryMaxDelay       string  `json:"retry_max_delay" env:"QUEUE_RETRY_MAX_DELAY" default:"1h"`
+    RetryMultiplier     float64 `json:"retry_multiplier" env:"QUEUE_RETRY_MULTIPLIER" default:"2.0"`
+    
+    // Health
+    HealthCheckInterval string  `json:"health_check_interval" env:"QUEUE_HEALTH_CHECK_INTERVAL" default:"10s"`
+    
+    // Monitoring
+    MetricsEnabled      bool    `json:"metrics_enabled" env:"QUEUE_METRICS_ENABLED" default:"true"`
+    MetricsInterval     string  `json:"metrics_interval" env:"QUEUE_METRICS_INTERVAL" default:"10s"`
+    
+    // DLQ
+    DLQEnabled          bool    `json:"dlq_enabled" env:"QUEUE_DLQ_ENABLED" default:"true"`
+    DLQRetentionDays    int     `json:"dlq_retention_days" env:"QUEUE_DLQ_RETENTION_DAYS" default:"7"`
+    
+    // Scheduled Jobs
+    ScheduledEnabled      bool   `json:"scheduled_enabled" env:"QUEUE_SCHEDULED_ENABLED" default:"true"`
+    ScheduledPollInterval string `json:"scheduled_poll_interval" env:"QUEUE_SCHEDULED_POLL_INTERVAL" default:"10s"`
+    
+    // Auto-scaling - THIS FIELD MUST BE HERE
+    AutoScale           bool    `json:"auto_scale" env:"QUEUE_AUTO_SCALE" default:"true"`
+    ScaleUpThreshold    int     `json:"scale_up_threshold" env:"QUEUE_SCALE_UP_THRESHOLD" default:"100"`
+    ScaleDownThreshold  int     `json:"scale_down_threshold" env:"QUEUE_SCALE_DOWN_THRESHOLD" default:"10"`
+    ScaleInterval       string  `json:"scale_interval" env:"QUEUE_SCALE_INTERVAL" default:"30s"`
+    
+    // Circuit Breaker
+    CircuitBreakerEnabled    bool   `json:"circuit_breaker_enabled" env:"QUEUE_CIRCUIT_BREAKER_ENABLED" default:"true"`
+    CircuitBreakerThreshold  int    `json:"circuit_breaker_threshold" env:"QUEUE_CIRCUIT_BREAKER_THRESHOLD" default:"5"`
+    CircuitBreakerTimeout    string `json:"circuit_breaker_timeout" env:"QUEUE_CIRCUIT_BREAKER_TIMEOUT" default:"60s"`
 }
 
 type QueueRedisConfig struct {
