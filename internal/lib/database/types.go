@@ -81,7 +81,6 @@ type DBStats struct {
 	MaxOpenConnections int
 }
 
-// Config holds database configuration
 type Config struct {
 	Driver   string `json:"driver" env:"DB_DRIVER"`
 	DSN      string `json:"dsn" env:"DB_DSN"`
@@ -93,8 +92,10 @@ type Config struct {
 	ConnMaxIdleTime time.Duration `json:"conn_max_idle_time" env:"DB_CONN_MAX_IDLE_TIME"`
 	
 	// Timeouts
-	ConnectionTimeout time.Duration `json:"connection_timeout" env:"DB_CONNECTION_TIMEOUT"`
-	QueryTimeout      time.Duration `json:"query_timeout" env:"DB_QUERY_TIMEOUT"`
+	ConnectionTimeout  time.Duration `json:"connection_timeout" env:"DB_CONNECTION_TIMEOUT"`
+	QueryTimeout       time.Duration `json:"query_timeout" env:"DB_QUERY_TIMEOUT"`
+	TransactionTimeout time.Duration `json:"transaction_timeout" env:"DB_TRANSACTION_TIMEOUT"`  // ADD THIS
+	ValidationTimeout  time.Duration `json:"validation_timeout" env:"DB_VALIDATION_TIMEOUT"`    // ADD THIS
 	
 	// Retry settings
 	MaxRetries    int           `json:"max_retries" env:"DB_MAX_RETRIES"`
