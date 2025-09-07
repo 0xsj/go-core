@@ -27,7 +27,6 @@ func RegisterProvider(name string, factory ProviderFactory) {
 	providers[name] = factory
 }
 
-// Provider is the DI provider for database
 type Provider struct {
 	Container *container.Container
 	db        Database
@@ -42,6 +41,7 @@ func NewProvider(c *container.Container) *Provider {
 
 func (p *Provider) Provide() Database {
 	p.once.Do(func() {
+		// Only resolve dependencies when Provide() is called (after container is built)
 		cfg := container.Resolve[*config.Config](p.Container)
 		appLogger := container.Resolve[logger.Logger](p.Container)
 		
@@ -73,14 +73,19 @@ func (p *Provider) Provide() Database {
 		}
 		
 		p.db = factory(dbConfig, appLogger)
+		
+		// Connect immediately after creating
+		if err := p.db.Connect(context.Background()); err != nil {
+			panic(fmt.Sprintf("Failed to connect to database: %v", err))
+		}
 	})
 	
 	return p.db
 }
 
 func (p *Provider) Start(ctx context.Context) error {
-	db := p.Provide()
-	return db.Connect(ctx)
+	// Don't call Provide() here - let it be lazy
+	return nil
 }
 
 func (p *Provider) Stop(ctx context.Context) error {
@@ -88,4 +93,10 @@ func (p *Provider) Stop(ctx context.Context) error {
 		return p.db.Close()
 	}
 	return nil
+}
+
+func GetProviderFactory(driver string) ProviderFactory {
+	providersMu.RLock()
+	defer providersMu.RUnlock()
+	return providers[driver]
 }
