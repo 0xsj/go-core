@@ -9,10 +9,12 @@ type Config struct {
 	Server     ServerConfig     `json:"server"`
 	Logger     LoggerConfig     `json:"logger"`
 	Database   DatabaseConfig   `json:"database"`
+	Databases  map[string]DatabaseConfig `json:"databases"`
 	Middleware MiddlewareConfig `json:"middleware"`
 	App        AppConfig        `json:"app"`
 	Redis      RedisConfig      `json:"redis"`
 	Health     HealthConfig     `json:"health"`
+	Queue      QueueConfig      `json:"queue"`
 }
 
 type ServerConfig struct {
@@ -45,6 +47,10 @@ type HealthConfig struct {
 	DiskPath             string  `json:"disk_path" env:"HEALTH_DISK_PATH" default:"/"`
 	DiskWarnPercent      float64 `json:"disk_warn_percent" env:"HEALTH_DISK_WARN_PERCENT" default:"80"`
 	DiskCriticalPercent  float64 `json:"disk_critical_percent" env:"HEALTH_DISK_CRITICAL_PERCENT" default:"95"`
+
+    EnableDatabaseCheck    bool          `json:"enable_database_check" env:"HEALTH_ENABLE_DATABASE_CHECK" default:"true"`
+	DatabaseCheckTimeout   time.Duration `json:"database_check_timeout" env:"HEALTH_DATABASE_CHECK_TIMEOUT" default:"5s"`
+	DatabaseCheckQuery     string        `json:"database_check_query" env:"HEALTH_DATABASE_CHECK_QUERY" default:"SELECT 1"`
 }
 
 type RateLimitConfig struct {
@@ -106,6 +112,77 @@ type RecoveryConfig struct {
 	IncludeStackInDev bool `json:"include_stack_in_dev" env:"MIDDLEWARE_RECOVERY_DEV_STACK" default:"true"`
 }
 
+type QueueConfig struct {
+	Enabled bool                `json:"enabled" env:"QUEUE_ENABLED" default:"true"`
+	Redis   QueueRedisConfig    `json:"redis"`
+	Queues  map[string]QueueDef `json:"queues"`
+	Global  QueueGlobalConfig   `json:"global"`
+}
+
+type QueueDef struct {
+	Name            string `json:"name"`
+	Enabled         bool   `json:"enabled" env:"QUEUE_${NAME}_ENABLED" default:"true"`
+	Workers         int    `json:"workers" env:"QUEUE_${NAME}_WORKERS" default:"2"`
+	MinWorkers      int    `json:"min_workers" env:"QUEUE_${NAME}_MIN_WORKERS" default:"1"`
+	MaxWorkers      int    `json:"max_workers" env:"QUEUE_${NAME}_MAX_WORKERS" default:"10"`
+	AutoScale       bool   `json:"auto_scale" env:"QUEUE_${NAME}_AUTO_SCALE" default:"true"`
+	MaxLength       int64  `json:"max_length" env:"QUEUE_${NAME}_MAX_LENGTH" default:"100000"`
+	PrefetchCount   int    `json:"prefetch_count" env:"QUEUE_${NAME}_PREFETCH" default:"1"`
+	Priority        string `json:"priority" env:"QUEUE_${NAME}_PRIORITY" default:"normal"`
+	EnableScheduled bool   `json:"enable_scheduled" env:"QUEUE_${NAME}_SCHEDULED" default:"true"`
+	EnableDLQ       bool   `json:"enable_dlq" env:"QUEUE_${NAME}_DLQ" default:"true"`
+	DLQMaxSize      int64  `json:"dlq_max_size" env:"QUEUE_${NAME}_DLQ_MAX_SIZE" default:"10000"`
+}
+
+type QueueGlobalConfig struct {
+    // Timeouts
+    DefaultTimeout      string  `json:"default_timeout" env:"QUEUE_DEFAULT_TIMEOUT" default:"30m"`
+    ShutdownTimeout     string  `json:"shutdown_timeout" env:"QUEUE_SHUTDOWN_TIMEOUT" default:"30s"`
+    
+    // Retry
+    MaxRetries          int     `json:"max_retries" env:"QUEUE_MAX_RETRIES" default:"3"`
+    RetryInitialDelay   string  `json:"retry_initial_delay" env:"QUEUE_RETRY_INITIAL_DELAY" default:"1s"`
+    RetryMaxDelay       string  `json:"retry_max_delay" env:"QUEUE_RETRY_MAX_DELAY" default:"1h"`
+    RetryMultiplier     float64 `json:"retry_multiplier" env:"QUEUE_RETRY_MULTIPLIER" default:"2.0"`
+    
+    // Health
+    HealthCheckInterval string  `json:"health_check_interval" env:"QUEUE_HEALTH_CHECK_INTERVAL" default:"10s"`
+    
+    // Monitoring
+    MetricsEnabled      bool    `json:"metrics_enabled" env:"QUEUE_METRICS_ENABLED" default:"true"`
+    MetricsInterval     string  `json:"metrics_interval" env:"QUEUE_METRICS_INTERVAL" default:"10s"`
+    
+    // DLQ
+    DLQEnabled          bool    `json:"dlq_enabled" env:"QUEUE_DLQ_ENABLED" default:"true"`
+    DLQRetentionDays    int     `json:"dlq_retention_days" env:"QUEUE_DLQ_RETENTION_DAYS" default:"7"`
+    
+    // Scheduled Jobs
+    ScheduledEnabled      bool   `json:"scheduled_enabled" env:"QUEUE_SCHEDULED_ENABLED" default:"true"`
+    ScheduledPollInterval string `json:"scheduled_poll_interval" env:"QUEUE_SCHEDULED_POLL_INTERVAL" default:"10s"`
+    
+    // Auto-scaling - THIS FIELD MUST BE HERE
+    AutoScale           bool    `json:"auto_scale" env:"QUEUE_AUTO_SCALE" default:"true"`
+    ScaleUpThreshold    int     `json:"scale_up_threshold" env:"QUEUE_SCALE_UP_THRESHOLD" default:"100"`
+    ScaleDownThreshold  int     `json:"scale_down_threshold" env:"QUEUE_SCALE_DOWN_THRESHOLD" default:"10"`
+    ScaleInterval       string  `json:"scale_interval" env:"QUEUE_SCALE_INTERVAL" default:"30s"`
+    
+    // Circuit Breaker
+    CircuitBreakerEnabled    bool   `json:"circuit_breaker_enabled" env:"QUEUE_CIRCUIT_BREAKER_ENABLED" default:"true"`
+    CircuitBreakerThreshold  int    `json:"circuit_breaker_threshold" env:"QUEUE_CIRCUIT_BREAKER_THRESHOLD" default:"5"`
+    CircuitBreakerTimeout    string `json:"circuit_breaker_timeout" env:"QUEUE_CIRCUIT_BREAKER_TIMEOUT" default:"60s"`
+}
+
+type QueueRedisConfig struct {
+	// Can use the main Redis config or separate
+	UseMainRedis bool   `json:"use_main_redis" env:"QUEUE_USE_MAIN_REDIS" default:"true"`
+	Host         string `json:"host" env:"QUEUE_REDIS_HOST" default:"localhost"`
+	Port         int    `json:"port" env:"QUEUE_REDIS_PORT" default:"6379"`
+	Password     string `json:"password" env:"QUEUE_REDIS_PASSWORD" default:""`
+	DB           int    `json:"db" env:"QUEUE_REDIS_DB" default:"1"` // Different DB for queues
+	MaxRetries   int    `json:"max_retries" env:"QUEUE_REDIS_MAX_RETRIES" default:"3"`
+	PoolSize     int    `json:"pool_size" env:"QUEUE_REDIS_POOL_SIZE" default:"10"`
+}
+
 type RedisConfig struct {
 	Host     string `json:"host" env:"REDIS_HOST" default:"localhost"`
 	Port     int    `json:"port" env:"REDIS_PORT" default:"6379"`
@@ -125,12 +202,52 @@ type LoggerConfig struct {
 }
 
 type DatabaseConfig struct {
-	Driver          string        `json:"driver" env:"DB_DRIVER" default:"sqlite"`
-	DSN             string        `json:"dsn" env:"DB_DSN" default:"app.db"`
+	// Connection settings
+	Driver   string `json:"driver" env:"DB_DRIVER" default:"sqlite"`
+	DSN      string `json:"dsn" env:"DB_DSN" default:"app.db"`
+	
+	// Connection pool settings
 	MaxOpenConns    int           `json:"max_open_conns" env:"DB_MAX_OPEN_CONNS" default:"25"`
 	MaxIdleConns    int           `json:"max_idle_conns" env:"DB_MAX_IDLE_CONNS" default:"5"`
 	ConnMaxLifetime time.Duration `json:"conn_max_lifetime" env:"DB_CONN_MAX_LIFETIME" default:"5m"`
+	ConnMaxIdleTime time.Duration `json:"conn_max_idle_time" env:"DB_CONN_MAX_IDLE_TIME" default:"1m"`
+	
+	// Timeouts
+	ConnectionTimeout time.Duration `json:"connection_timeout" env:"DB_CONNECTION_TIMEOUT" default:"10s"`
+	QueryTimeout      time.Duration `json:"query_timeout" env:"DB_QUERY_TIMEOUT" default:"30s"`
+	TransactionTimeout time.Duration `json:"transaction_timeout" env:"DB_TRANSACTION_TIMEOUT" default:"60s"`
+	
+	// Retry settings
+	MaxRetries    int           `json:"max_retries" env:"DB_MAX_RETRIES" default:"3"`
+	RetryInterval time.Duration `json:"retry_interval" env:"DB_RETRY_INTERVAL" default:"1s"`
+	
+	// Safety and monitoring
+	EnableQueryLogging bool          `json:"enable_query_logging" env:"DB_ENABLE_QUERY_LOGGING" default:"true"`
+	SlowQueryThreshold time.Duration `json:"slow_query_threshold" env:"DB_SLOW_QUERY_THRESHOLD" default:"1s"`
+	EnableMetrics      bool          `json:"enable_metrics" env:"DB_ENABLE_METRICS" default:"true"`
+	EnableTracing      bool          `json:"enable_tracing" env:"DB_ENABLE_TRACING" default:"false"`
+	
+	// Connection validation
+	TestOnBorrow      bool          `json:"test_on_borrow" env:"DB_TEST_ON_BORROW" default:"true"`
+	ValidationQuery   string        `json:"validation_query" env:"DB_VALIDATION_QUERY" default:"SELECT 1"`
+	ValidationTimeout time.Duration `json:"validation_timeout" env:"DB_VALIDATION_TIMEOUT" default:"3s"`
+	
+	// Optional: Support for read replicas
+	ReadReplicas []DatabaseReplicaConfig `json:"read_replicas"`
+	
+	// Optional: Migration settings
+	MigrationsEnabled bool   `json:"migrations_enabled" env:"DB_MIGRATIONS_ENABLED" default:"true"`
+	MigrationsPath    string `json:"migrations_path" env:"DB_MIGRATIONS_PATH" default:"migrations"`
+	MigrationsTable   string `json:"migrations_table" env:"DB_MIGRATIONS_TABLE" default:"schema_migrations"`
 }
+
+type DatabaseReplicaConfig struct {
+	DSN             string        `json:"dsn" env:"DB_REPLICA_DSN"`
+	MaxOpenConns    int           `json:"max_open_conns" env:"DB_REPLICA_MAX_OPEN_CONNS" default:"10"`
+	MaxIdleConns    int           `json:"max_idle_conns" env:"DB_REPLICA_MAX_IDLE_CONNS" default:"2"`
+	ConnMaxLifetime time.Duration `json:"conn_max_lifetime" env:"DB_REPLICA_CONN_MAX_LIFETIME" default:"5m"`
+}
+
 
 type AppConfig struct {
 	Name        string `json:"name" env:"APP_NAME" default:"go-core"`
@@ -145,4 +262,121 @@ func (a AppConfig) IsDevelopment() bool {
 
 func (a AppConfig) IsProduction() bool {
 	return a.Environment == "production" || a.Environment == "prod"
+}
+
+func (c QueueConfig) GetQueueDef(name string) (QueueDef, bool) {
+	if c.Queues == nil {
+		return QueueDef{}, false
+	}
+	q, exists := c.Queues[name]
+	return q, exists
+}
+
+func (c QueueConfig) IsEnabled() bool {
+	return c.Enabled
+}
+
+// GetDefaultQueues returns default queue definitions if none are configured
+func GetDefaultQueues() map[string]QueueDef {
+	return map[string]QueueDef{
+		"default": {
+			Name:            "default",
+			Enabled:         true,
+			Workers:         2,
+			MinWorkers:      1,
+			MaxWorkers:      10,
+			AutoScale:       true,
+			MaxLength:       100000,
+			PrefetchCount:   1,
+			Priority:        "normal",
+			EnableScheduled: true,
+			EnableDLQ:       true,
+			DLQMaxSize:      10000,
+		},
+		"high": {
+			Name:            "high",
+			Enabled:         true,
+			Workers:         4,
+			MinWorkers:      2,
+			MaxWorkers:      20,
+			AutoScale:       true,
+			MaxLength:       50000,
+			PrefetchCount:   1,
+			Priority:        "high",
+			EnableScheduled: true,
+			EnableDLQ:       true,
+			DLQMaxSize:      5000,
+		},
+		"low": {
+			Name:            "low",
+			Enabled:         true,
+			Workers:         1,
+			MinWorkers:      1,
+			MaxWorkers:      5,
+			AutoScale:       false,
+			MaxLength:       200000,
+			PrefetchCount:   5,
+			Priority:        "low",
+			EnableScheduled: true,
+			EnableDLQ:       true,
+			DLQMaxSize:      20000,
+		},
+	}
+}
+
+func (c Config) GetDatabase(name string) (DatabaseConfig, bool) {
+	if name == "primary" || name == "" {
+		return c.Database, true
+	}
+	
+	if c.Databases != nil {
+		db, exists := c.Databases[name]
+		return db, exists
+	}
+	
+	return DatabaseConfig{}, false
+}
+
+func (c DatabaseConfig) IsPostgres() bool {
+	return c.Driver == "postgres" || c.Driver == "postgresql"
+}
+
+func (c DatabaseConfig) IsMySQL() bool {
+	return c.Driver == "mysql" || c.Driver == "mariadb"
+}
+
+func (c DatabaseConfig) IsSQLite() bool {
+	return c.Driver == "sqlite" || c.Driver == "sqlite3"
+}
+
+func (c DatabaseConfig) Validate() error {
+	if c.Driver == "" {
+		return fmt.Errorf("database driver is required")
+	}
+	
+	if c.DSN == "" {
+		return fmt.Errorf("database DSN is required")
+	}
+	
+	if c.MaxOpenConns < 1 {
+		return fmt.Errorf("max_open_conns must be at least 1")
+	}
+	
+	if c.MaxIdleConns < 0 {
+		return fmt.Errorf("max_idle_conns cannot be negative")
+	}
+	
+	if c.MaxIdleConns > c.MaxOpenConns {
+		return fmt.Errorf("max_idle_conns cannot exceed max_open_conns")
+	}
+	
+	if c.ConnMaxLifetime < 0 {
+		return fmt.Errorf("conn_max_lifetime cannot be negative")
+	}
+	
+	if c.SlowQueryThreshold < 0 {
+		return fmt.Errorf("slow_query_threshold cannot be negative")
+	}
+	
+	return nil
 }
