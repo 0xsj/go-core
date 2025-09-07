@@ -331,8 +331,8 @@ func (l *loader) Validate(config *Config) error {
 			config.Logger.Format, strings.Join(validLogFormats, ", ")))
 	}
 
-	if config.Database.MaxOpenConns < 0 {
-		errors = append(errors, "database max open connections cannot be negative")
+	if config.Database.MaxOpenConns < 1 {
+		errors = append(errors, "database max open connections must be at least 1")
 	}
 
 	if config.Database.MaxIdleConns < 0 {

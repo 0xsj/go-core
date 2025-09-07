@@ -9,6 +9,7 @@ type Config struct {
 	Server     ServerConfig     `json:"server"`
 	Logger     LoggerConfig     `json:"logger"`
 	Database   DatabaseConfig   `json:"database"`
+	Databases  map[string]DatabaseConfig `json:"databases"`
 	Middleware MiddlewareConfig `json:"middleware"`
 	App        AppConfig        `json:"app"`
 	Redis      RedisConfig      `json:"redis"`
@@ -46,6 +47,10 @@ type HealthConfig struct {
 	DiskPath             string  `json:"disk_path" env:"HEALTH_DISK_PATH" default:"/"`
 	DiskWarnPercent      float64 `json:"disk_warn_percent" env:"HEALTH_DISK_WARN_PERCENT" default:"80"`
 	DiskCriticalPercent  float64 `json:"disk_critical_percent" env:"HEALTH_DISK_CRITICAL_PERCENT" default:"95"`
+
+    EnableDatabaseCheck    bool          `json:"enable_database_check" env:"HEALTH_ENABLE_DATABASE_CHECK" default:"true"`
+	DatabaseCheckTimeout   time.Duration `json:"database_check_timeout" env:"HEALTH_DATABASE_CHECK_TIMEOUT" default:"5s"`
+	DatabaseCheckQuery     string        `json:"database_check_query" env:"HEALTH_DATABASE_CHECK_QUERY" default:"SELECT 1"`
 }
 
 type RateLimitConfig struct {
@@ -194,12 +199,52 @@ type LoggerConfig struct {
 }
 
 type DatabaseConfig struct {
-	Driver          string        `json:"driver" env:"DB_DRIVER" default:"sqlite"`
-	DSN             string        `json:"dsn" env:"DB_DSN" default:"app.db"`
+	// Connection settings
+	Driver   string `json:"driver" env:"DB_DRIVER" default:"sqlite"`
+	DSN      string `json:"dsn" env:"DB_DSN" default:"app.db"`
+	
+	// Connection pool settings
 	MaxOpenConns    int           `json:"max_open_conns" env:"DB_MAX_OPEN_CONNS" default:"25"`
 	MaxIdleConns    int           `json:"max_idle_conns" env:"DB_MAX_IDLE_CONNS" default:"5"`
 	ConnMaxLifetime time.Duration `json:"conn_max_lifetime" env:"DB_CONN_MAX_LIFETIME" default:"5m"`
+	ConnMaxIdleTime time.Duration `json:"conn_max_idle_time" env:"DB_CONN_MAX_IDLE_TIME" default:"1m"`
+	
+	// Timeouts
+	ConnectionTimeout time.Duration `json:"connection_timeout" env:"DB_CONNECTION_TIMEOUT" default:"10s"`
+	QueryTimeout      time.Duration `json:"query_timeout" env:"DB_QUERY_TIMEOUT" default:"30s"`
+	TransactionTimeout time.Duration `json:"transaction_timeout" env:"DB_TRANSACTION_TIMEOUT" default:"60s"`
+	
+	// Retry settings
+	MaxRetries    int           `json:"max_retries" env:"DB_MAX_RETRIES" default:"3"`
+	RetryInterval time.Duration `json:"retry_interval" env:"DB_RETRY_INTERVAL" default:"1s"`
+	
+	// Safety and monitoring
+	EnableQueryLogging bool          `json:"enable_query_logging" env:"DB_ENABLE_QUERY_LOGGING" default:"true"`
+	SlowQueryThreshold time.Duration `json:"slow_query_threshold" env:"DB_SLOW_QUERY_THRESHOLD" default:"1s"`
+	EnableMetrics      bool          `json:"enable_metrics" env:"DB_ENABLE_METRICS" default:"true"`
+	EnableTracing      bool          `json:"enable_tracing" env:"DB_ENABLE_TRACING" default:"false"`
+	
+	// Connection validation
+	TestOnBorrow      bool          `json:"test_on_borrow" env:"DB_TEST_ON_BORROW" default:"true"`
+	ValidationQuery   string        `json:"validation_query" env:"DB_VALIDATION_QUERY" default:"SELECT 1"`
+	ValidationTimeout time.Duration `json:"validation_timeout" env:"DB_VALIDATION_TIMEOUT" default:"3s"`
+	
+	// Optional: Support for read replicas
+	ReadReplicas []DatabaseReplicaConfig `json:"read_replicas"`
+	
+	// Optional: Migration settings
+	MigrationsEnabled bool   `json:"migrations_enabled" env:"DB_MIGRATIONS_ENABLED" default:"true"`
+	MigrationsPath    string `json:"migrations_path" env:"DB_MIGRATIONS_PATH" default:"migrations"`
+	MigrationsTable   string `json:"migrations_table" env:"DB_MIGRATIONS_TABLE" default:"schema_migrations"`
 }
+
+type DatabaseReplicaConfig struct {
+	DSN             string        `json:"dsn" env:"DB_REPLICA_DSN"`
+	MaxOpenConns    int           `json:"max_open_conns" env:"DB_REPLICA_MAX_OPEN_CONNS" default:"10"`
+	MaxIdleConns    int           `json:"max_idle_conns" env:"DB_REPLICA_MAX_IDLE_CONNS" default:"2"`
+	ConnMaxLifetime time.Duration `json:"conn_max_lifetime" env:"DB_REPLICA_CONN_MAX_LIFETIME" default:"5m"`
+}
+
 
 type AppConfig struct {
 	Name        string `json:"name" env:"APP_NAME" default:"go-core"`
@@ -274,4 +319,61 @@ func GetDefaultQueues() map[string]QueueDef {
 			DLQMaxSize:      20000,
 		},
 	}
+}
+
+func (c Config) GetDatabase(name string) (DatabaseConfig, bool) {
+	if name == "primary" || name == "" {
+		return c.Database, true
+	}
+	
+	if c.Databases != nil {
+		db, exists := c.Databases[name]
+		return db, exists
+	}
+	
+	return DatabaseConfig{}, false
+}
+
+func (c DatabaseConfig) IsPostgres() bool {
+	return c.Driver == "postgres" || c.Driver == "postgresql"
+}
+
+func (c DatabaseConfig) IsMySQL() bool {
+	return c.Driver == "mysql" || c.Driver == "mariadb"
+}
+
+func (c DatabaseConfig) IsSQLite() bool {
+	return c.Driver == "sqlite" || c.Driver == "sqlite3"
+}
+
+func (c DatabaseConfig) Validate() error {
+	if c.Driver == "" {
+		return fmt.Errorf("database driver is required")
+	}
+	
+	if c.DSN == "" {
+		return fmt.Errorf("database DSN is required")
+	}
+	
+	if c.MaxOpenConns < 1 {
+		return fmt.Errorf("max_open_conns must be at least 1")
+	}
+	
+	if c.MaxIdleConns < 0 {
+		return fmt.Errorf("max_idle_conns cannot be negative")
+	}
+	
+	if c.MaxIdleConns > c.MaxOpenConns {
+		return fmt.Errorf("max_idle_conns cannot exceed max_open_conns")
+	}
+	
+	if c.ConnMaxLifetime < 0 {
+		return fmt.Errorf("conn_max_lifetime cannot be negative")
+	}
+	
+	if c.SlowQueryThreshold < 0 {
+		return fmt.Errorf("slow_query_threshold cannot be negative")
+	}
+	
+	return nil
 }
