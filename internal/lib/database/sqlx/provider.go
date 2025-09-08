@@ -22,7 +22,7 @@ type Provider struct {
 	db     *sqlx.DB
 	config *database.Config
 	logger logger.Logger
-	
+
 	slowQueryThreshold time.Duration
 	queryLogger        logger.Logger
 }
@@ -33,7 +33,7 @@ func NewProvider(config *database.Config, log logger.Logger) *Provider {
 	if slowThreshold == 0 {
 		slowThreshold = time.Second
 	}
-	
+
 	return &Provider{
 		config:             config,
 		logger:             log,
@@ -47,39 +47,39 @@ func (p *Provider) Connect(ctx context.Context) error {
 	if p.db != nil {
 		return nil
 	}
-	
+
 	connectCtx, cancel := context.WithTimeout(ctx, p.config.ConnectionTimeout)
 	defer cancel()
-	
+
 	var db *sqlx.DB
 	var err error
-	
+
 	for attempt := 0; attempt <= p.config.MaxRetries; attempt++ {
 		if attempt > 0 {
 			p.logger.Warn("Retrying database connection",
 				logger.Int("attempt", attempt))
 			time.Sleep(p.config.RetryInterval)
 		}
-		
+
 		db, err = sqlx.ConnectContext(connectCtx, p.config.Driver, p.config.DSN)
 		if err == nil {
 			break
 		}
 	}
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to connect: %w", err)
 	}
-	
+
 	// Configure connection pool
 	db.SetMaxOpenConns(p.config.MaxOpenConns)
 	db.SetMaxIdleConns(p.config.MaxIdleConns)
 	db.SetConnMaxLifetime(p.config.ConnMaxLifetime)
-	
+
 	p.db = db
 	p.logger.Info("Database connected",
 		logger.String("driver", p.config.Driver))
-	
+
 	return nil
 }
 
@@ -88,7 +88,7 @@ func (p *Provider) Close() error {
 	if p.db == nil {
 		return nil
 	}
-	
+
 	err := p.db.Close()
 	p.db = nil
 	return err
@@ -107,7 +107,7 @@ func (p *Provider) Stats() database.DBStats {
 	if p.db == nil {
 		return database.DBStats{}
 	}
-	
+
 	stats := p.db.Stats()
 	return database.DBStats{
 		OpenConnections:    stats.OpenConnections,
@@ -125,12 +125,12 @@ func (p *Provider) BeginTx(ctx context.Context, opts *sql.TxOptions) (database.T
 	if p.db == nil {
 		return nil, fmt.Errorf("database not connected")
 	}
-	
+
 	tx, err := p.db.BeginTxx(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &transaction{
 		tx:     tx,
 		ctx:    ctx,
@@ -144,19 +144,19 @@ func (p *Provider) WithTransaction(ctx context.Context, fn database.TxFunc) erro
 	if err != nil {
 		return err
 	}
-	
+
 	defer func() {
 		if r := recover(); r != nil {
 			_ = tx.Rollback()
 			panic(r)
 		}
 	}()
-	
+
 	if err := fn(ctx, tx); err != nil {
 		_ = tx.Rollback()
 		return err
 	}
-	
+
 	return tx.Commit()
 }
 
@@ -173,12 +173,12 @@ func (p *Provider) Query(ctx context.Context, query string, args ...any) (databa
 	if p.db == nil {
 		return nil, fmt.Errorf("database not connected")
 	}
-	
+
 	rows, err := p.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &rowsWrapper{rows: rows}, nil
 }
 
@@ -187,7 +187,7 @@ func (p *Provider) QueryRow(ctx context.Context, query string, args ...any) data
 	if p.db == nil {
 		return &errorRow{err: fmt.Errorf("database not connected")}
 	}
-	
+
 	row := p.db.QueryRowContext(ctx, query, args...)
 	return &rowWrapper{row: row}
 }

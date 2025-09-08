@@ -463,15 +463,15 @@ func (l *logger) getLevelColors(level LogLevel) (levelColor, resetColor string) 
 }
 
 func Int64(key string, value int64) Field {
-    return Field{Key: key, Value: value}
+	return Field{Key: key, Value: value}
 }
 
 // Also add Float64 while we're at it:
 func Float64(key string, value float64) Field {
-    return Field{Key: key, Value: value}
+	return Field{Key: key, Value: value}
 }
 
 // And Time for time values:
 func Time(key string, value time.Time) Field {
-    return Field{Key: key, Value: value}
+	return Field{Key: key, Value: value}
 }

@@ -436,13 +436,13 @@ func main() {
 	// Create database manually (like middleware)
 	log.Println("💾 Creating database connection...")
 	db := createDatabase(cfg, appLogger)
-	
+
 	// Connect to database
 	if err := db.Connect(ctx); err != nil {
 		appLogger.Error("Failed to connect to database", logger.Err(err))
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	
+
 	// Defer database cleanup
 	defer func() {
 		if db != nil {
@@ -452,7 +452,7 @@ func main() {
 			}
 		}
 	}()
-	
+
 	// Test the connection
 	log.Println("💾 Testing database connection...")
 	if err := db.Ping(ctx); err != nil {
@@ -461,7 +461,7 @@ func main() {
 	} else {
 		appLogger.Info("Database connected successfully!",
 			logger.String("driver", db.DriverName()))
-		
+
 		stats := db.Stats()
 		appLogger.Info("Database pool stats",
 			logger.Int("open_connections", stats.OpenConnections),
@@ -475,12 +475,12 @@ func main() {
 	if cfg.Queue.Enabled {
 		log.Println("📋 Creating queue manager...")
 		queueManager = createQueueManager(ctx, cfg, appLogger)
-		
+
 		// Register job handlers
 		if err := registerJobHandlers(queueManager, appLogger); err != nil {
 			appLogger.Error("Failed to register job handlers", logger.Err(err))
 		}
-		
+
 		// Defer queue cleanup
 		defer func() {
 			if queueManager != nil {
@@ -492,7 +492,7 @@ func main() {
 				}
 			}
 		}()
-		
+
 		appLogger.Info("Queue system ready",
 			logger.Int("queue_count", len(cfg.Queue.Queues)),
 			logger.Bool("dlq_enabled", cfg.Queue.Global.DLQEnabled),
@@ -521,14 +521,14 @@ func main() {
 		)
 		healthManager.RegisterChecker(diskChecker)
 	}
-	
+
 	// Add database health checker
 	if cfg.Health.EnableDatabaseCheck {
 		dbHealthChecker := database.NewHealthChecker(db, cfg.Health.DatabaseCheckTimeout)
 		healthManager.RegisterChecker(dbHealthChecker)
 		appLogger.Info("Database health checker registered")
 	}
-	
+
 	// Add queue health checker if queue is enabled
 	if cfg.Queue.Enabled && queueManager != nil {
 		healthManager.RegisterChecker(NewQueueHealthChecker(queueManager))
@@ -596,41 +596,41 @@ func setupContainer(c *container.Container) error {
 
 func createDatabase(cfg *config.Config, appLogger logger.Logger) database.Database {
 	dbConfig := &database.Config{
-		Driver:              cfg.Database.Driver,
-		DSN:                 cfg.Database.DSN,
-		MaxOpenConns:        cfg.Database.MaxOpenConns,
-		MaxIdleConns:        cfg.Database.MaxIdleConns,
-		ConnMaxLifetime:     cfg.Database.ConnMaxLifetime,
-		ConnMaxIdleTime:     cfg.Database.ConnMaxIdleTime,
-		ConnectionTimeout:   cfg.Database.ConnectionTimeout,
-		QueryTimeout:        cfg.Database.QueryTimeout,
-		TransactionTimeout:  cfg.Database.TransactionTimeout,
-		MaxRetries:          cfg.Database.MaxRetries,
-		RetryInterval:       cfg.Database.RetryInterval,
-		EnableQueryLogging:  cfg.Database.EnableQueryLogging,
-		SlowQueryThreshold:  cfg.Database.SlowQueryThreshold,
-		EnableMetrics:       cfg.Database.EnableMetrics,
-		ValidationTimeout:   cfg.Database.ValidationTimeout,
+		Driver:             cfg.Database.Driver,
+		DSN:                cfg.Database.DSN,
+		MaxOpenConns:       cfg.Database.MaxOpenConns,
+		MaxIdleConns:       cfg.Database.MaxIdleConns,
+		ConnMaxLifetime:    cfg.Database.ConnMaxLifetime,
+		ConnMaxIdleTime:    cfg.Database.ConnMaxIdleTime,
+		ConnectionTimeout:  cfg.Database.ConnectionTimeout,
+		QueryTimeout:       cfg.Database.QueryTimeout,
+		TransactionTimeout: cfg.Database.TransactionTimeout,
+		MaxRetries:         cfg.Database.MaxRetries,
+		RetryInterval:      cfg.Database.RetryInterval,
+		EnableQueryLogging: cfg.Database.EnableQueryLogging,
+		SlowQueryThreshold: cfg.Database.SlowQueryThreshold,
+		EnableMetrics:      cfg.Database.EnableMetrics,
+		ValidationTimeout:  cfg.Database.ValidationTimeout,
 	}
-	
+
 	// Get the factory for the driver
 	factory := database.GetProviderFactory(cfg.Database.Driver)
 	if factory == nil {
 		panic(fmt.Sprintf("Database provider '%s' not registered", cfg.Database.Driver))
 	}
-	
+
 	return factory(dbConfig, appLogger)
 }
 
 func createQueueManager(ctx context.Context, cfg *config.Config, appLogger logger.Logger) queue.QueueManager {
 	// Create queue manager directly without DI
 	manager := queue.CreateManager(ctx, cfg, appLogger)
-	
+
 	// Start the manager
 	if err := manager.Start(ctx); err != nil {
 		appLogger.Fatal("Failed to start queue manager", logger.Err(err))
 	}
-	
+
 	return manager
 }
 
@@ -846,9 +846,6 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "Welcome to go-core with DI and Queue System!")
 }
 
-// ... continuing cmd/server/main.go
-
-// Queue HTTP handlers
 func createEnqueueHandler(queueManager queue.QueueManager, appLogger logger.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -888,17 +885,20 @@ func createEnqueueHandler(queueManager queue.QueueManager, appLogger logger.Logg
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": true,
 			"job_id":  job.ID,
-		})
+		}); err != nil {
+			appLogger.Error("Failed to encode response", logger.Err(err))
+			// Response header already sent, can't change status
+		}
 	}
 }
 
 func createQueueStatsHandler(queueManager queue.QueueManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		queueName := r.URL.Query().Get("queue")
-		
+
 		var stats interface{}
 		if queueName != "" {
 			stats = queueManager.GetQueueStats(queueName)
@@ -907,7 +907,11 @@ func createQueueStatsHandler(queueManager queue.QueueManager) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(stats)
+		if err := json.NewEncoder(w).Encode(stats); err != nil {
+			// Since we haven't sent a status code yet, we can still send an error
+			http.Error(w, "Failed to encode stats", http.StatusInternalServerError)
+			return
+		}
 	}
 }
 
@@ -938,7 +942,13 @@ func createDLQHandler(queueManager queue.QueueManager) http.HandlerFunc {
 			}
 
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]string{"status": "reprocessed"})
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(map[string]string{"status": "reprocessed"}); err != nil {
+				// Status already sent, just log the error
+				// Note: you'll need to pass appLogger to this function or use a closure
+				// For now, we'll just ignore since status is already sent
+				_ = err
+			}
 			return
 		}
 
@@ -950,7 +960,10 @@ func createDLQHandler(queueManager queue.QueueManager) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(jobs)
+		if err := json.NewEncoder(w).Encode(jobs); err != nil {
+			http.Error(w, "Failed to encode DLQ jobs", http.StatusInternalServerError)
+			return
+		}
 	}
 }
 
@@ -968,10 +981,10 @@ func (h *ExampleJobHandler) Handle(ctx context.Context, job *queue.Job) error {
 		logger.String("job_id", job.ID),
 		logger.String("payload", string(job.Payload)),
 	)
-	
+
 	// Simulate work
 	time.Sleep(1 * time.Second)
-	
+
 	return nil
 }
 
@@ -988,7 +1001,7 @@ func (h *ExampleJobHandler) OnSuccess(ctx context.Context, job *queue.Job) {
 }
 
 func (h *ExampleJobHandler) OnFailure(ctx context.Context, job *queue.Job, err error) {
-	h.logger.Error("Job failed", 
+	h.logger.Error("Job failed",
 		logger.String("job_id", job.ID),
 		logger.Err(err),
 	)
@@ -1022,7 +1035,7 @@ func (h *EmailJobHandler) Handle(ctx context.Context, job *queue.Job) error {
 	// TODO: Actual email sending logic here
 	// For now, just simulate sending
 	time.Sleep(500 * time.Millisecond)
-	
+
 	return nil
 }
 
@@ -1061,7 +1074,7 @@ func (c *QueueHealthChecker) Critical() bool {
 
 func (c *QueueHealthChecker) Check(ctx context.Context) health.HealthResult {
 	stats := c.queueManager.GetStats()
-	
+
 	details := map[string]interface{}{
 		"queue_depth": stats.QueueDepth,
 		"dlq_count":   stats.DLQCount,

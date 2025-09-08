@@ -34,13 +34,13 @@ const (
 type ErrorCode string
 
 const (
-	ErrTimeout     ErrorCode = "timeout"
-	ErrPanic       ErrorCode = "panic"
-	ErrValidation  ErrorCode = "validation"
-	ErrDependency  ErrorCode = "dependency"
-	ErrRateLimit   ErrorCode = "rate_limit"
-	ErrCancelled   ErrorCode = "cancelled"
-	ErrExpired     ErrorCode = "expired"
+	ErrTimeout    ErrorCode = "timeout"
+	ErrPanic      ErrorCode = "panic"
+	ErrValidation ErrorCode = "validation"
+	ErrDependency ErrorCode = "dependency"
+	ErrRateLimit  ErrorCode = "rate_limit"
+	ErrCancelled  ErrorCode = "cancelled"
+	ErrExpired    ErrorCode = "expired"
 )
 
 // JobError represents an error that occurred during job processing
@@ -204,84 +204,84 @@ type WorkerPool interface {
 
 // WorkerPoolHealth provides health metrics for a worker pool
 type WorkerPoolHealth struct {
-	ActiveWorkers   int           `json:"active_workers"`
-	IdleWorkers     int           `json:"idle_workers"`
-	ProcessingJobs  int           `json:"processing_jobs"`
-	ErrorRate       float64       `json:"error_rate"`       // Errors per minute
-	AvgProcessTime  time.Duration `json:"avg_process_time"`
-	LastError       *JobError     `json:"last_error,omitempty"`
-	LastErrorTime   *time.Time    `json:"last_error_time,omitempty"`
-	WorkerStatuses  []WorkerStatus `json:"worker_statuses"`
+	ActiveWorkers  int            `json:"active_workers"`
+	IdleWorkers    int            `json:"idle_workers"`
+	ProcessingJobs int            `json:"processing_jobs"`
+	ErrorRate      float64        `json:"error_rate"` // Errors per minute
+	AvgProcessTime time.Duration  `json:"avg_process_time"`
+	LastError      *JobError      `json:"last_error,omitempty"`
+	LastErrorTime  *time.Time     `json:"last_error_time,omitempty"`
+	WorkerStatuses []WorkerStatus `json:"worker_statuses"`
 }
 
 // WorkerStatus represents the status of an individual worker
 type WorkerStatus struct {
-	ID          string        `json:"id"`
-	State       string        `json:"state"` // idle, processing, stopped
-	CurrentJob  string        `json:"current_job,omitempty"`
-	JobsHandled int64         `json:"jobs_handled"`
-	ErrorCount  int64         `json:"error_count"`
-	StartedAt   time.Time     `json:"started_at"`
-	LastJobAt   *time.Time    `json:"last_job_at,omitempty"`
+	ID          string     `json:"id"`
+	State       string     `json:"state"` // idle, processing, stopped
+	CurrentJob  string     `json:"current_job,omitempty"`
+	JobsHandled int64      `json:"jobs_handled"`
+	ErrorCount  int64      `json:"error_count"`
+	StartedAt   time.Time  `json:"started_at"`
+	LastJobAt   *time.Time `json:"last_job_at,omitempty"`
 }
 
 // QueueStats provides queue metrics
 type QueueStats struct {
-	Name            string            `json:"name"`
-	QueueDepth      int64             `json:"queue_depth"`
-	ScheduledCount  int64             `json:"scheduled_count"`
-	ProcessingCount int64             `json:"processing_count"`
-	DLQCount        int64             `json:"dlq_count"`
-	WorkerCount     int               `json:"worker_count"`
-	ProcessedTotal  int64             `json:"processed_total"`
-	FailedTotal     int64             `json:"failed_total"`
-	AverageWaitTime time.Duration     `json:"average_wait_time"`
-	AverageRunTime  time.Duration     `json:"average_run_time"`
-	ErrorRate       float64           `json:"error_rate"`
-	Throughput      float64           `json:"throughput"` // Jobs per second
-	ByPriority      map[Priority]int64 `json:"by_priority"`
+	Name            string              `json:"name"`
+	QueueDepth      int64               `json:"queue_depth"`
+	ScheduledCount  int64               `json:"scheduled_count"`
+	ProcessingCount int64               `json:"processing_count"`
+	DLQCount        int64               `json:"dlq_count"`
+	WorkerCount     int                 `json:"worker_count"`
+	ProcessedTotal  int64               `json:"processed_total"`
+	FailedTotal     int64               `json:"failed_total"`
+	AverageWaitTime time.Duration       `json:"average_wait_time"`
+	AverageRunTime  time.Duration       `json:"average_run_time"`
+	ErrorRate       float64             `json:"error_rate"`
+	Throughput      float64             `json:"throughput"` // Jobs per second
+	ByPriority      map[Priority]int64  `json:"by_priority"`
 	ByStatus        map[JobStatus]int64 `json:"by_status"`
 }
 
 // QueueConfig defines configuration for a queue
 type QueueConfig struct {
-	Name              string        `json:"name"`
-	StreamKey         string        `json:"stream_key"`      // Redis stream key
-	ConsumerGroup     string        `json:"consumer_group"`
-	MaxLength         int64         `json:"max_length"`      // Max stream length (0 = unlimited)
-	BlockingTimeout   time.Duration `json:"blocking_timeout"`
-	ClaimMinIdleTime  time.Duration `json:"claim_min_idle_time"` // For stuck messages
-	RetryPolicy       RetryPolicy   `json:"retry_policy"`
-	
+	Name             string        `json:"name"`
+	StreamKey        string        `json:"stream_key"` // Redis stream key
+	ConsumerGroup    string        `json:"consumer_group"`
+	MaxLength        int64         `json:"max_length"` // Max stream length (0 = unlimited)
+	BlockingTimeout  time.Duration `json:"blocking_timeout"`
+	ClaimMinIdleTime time.Duration `json:"claim_min_idle_time"` // For stuck messages
+	RetryPolicy      RetryPolicy   `json:"retry_policy"`
+
 	// DLQ settings
-	EnableDLQ         bool          `json:"enable_dlq"`
-	DLQMaxSize        int64         `json:"dlq_max_size"`
-	DLQRetentionDays  int           `json:"dlq_retention_days"` // THIS WAS MISSING
-	
+	EnableDLQ        bool  `json:"enable_dlq"`
+	DLQMaxSize       int64 `json:"dlq_max_size"`
+	DLQRetentionDays int   `json:"dlq_retention_days"` // THIS WAS MISSING
+
 	// Scheduled jobs
-	EnableScheduled   bool          `json:"enable_scheduled"`
-	
+	EnableScheduled bool `json:"enable_scheduled"`
+
 	// Priority settings
-	EnablePriority    bool          `json:"enable_priority"`
-	DefaultPriority   Priority      `json:"default_priority"`
-	
+	EnablePriority  bool     `json:"enable_priority"`
+	DefaultPriority Priority `json:"default_priority"`
+
 	// Worker settings
-	WorkerCount       int           `json:"worker_count"`
-	MaxWorkers        int           `json:"max_workers"`
-	MinWorkers        int           `json:"min_workers"`
-	AutoScale         bool          `json:"auto_scale"`
-	PrefetchCount     int           `json:"prefetch_count"` // Jobs per worker
+	WorkerCount   int  `json:"worker_count"`
+	MaxWorkers    int  `json:"max_workers"`
+	MinWorkers    int  `json:"min_workers"`
+	AutoScale     bool `json:"auto_scale"`
+	PrefetchCount int  `json:"prefetch_count"` // Jobs per worker
 }
 
 // RetryPolicy defines how failed jobs should be retried
 type RetryPolicy struct {
-	MaxAttempts      int           `json:"max_attempts"`
-	InitialDelay     time.Duration `json:"initial_delay"`
-	MaxDelay         time.Duration `json:"max_delay"`
-	Multiplier       float64       `json:"multiplier"`
-	MaxDoublings     int           `json:"max_doublings"`     // Cap exponential growth
-	RetryableErrors  []ErrorCode   `json:"retryable_errors"`  // Which errors to retry
-	NonRetryableErrors []ErrorCode `json:"non_retryable_errors"`
+	MaxAttempts        int           `json:"max_attempts"`
+	InitialDelay       time.Duration `json:"initial_delay"`
+	MaxDelay           time.Duration `json:"max_delay"`
+	Multiplier         float64       `json:"multiplier"`
+	MaxDoublings       int           `json:"max_doublings"`    // Cap exponential growth
+	RetryableErrors    []ErrorCode   `json:"retryable_errors"` // Which errors to retry
+	NonRetryableErrors []ErrorCode   `json:"non_retryable_errors"`
 }
 
 // DefaultRetryPolicy returns sensible defaults
@@ -313,19 +313,19 @@ func (r RetryPolicy) ShouldRetry(err JobError) bool {
 			return false
 		}
 	}
-	
+
 	// If retryable list is empty, retry all except non-retryable
 	if len(r.RetryableErrors) == 0 {
 		return err.Retryable
 	}
-	
+
 	// Check if in retryable list
 	for _, code := range r.RetryableErrors {
 		if err.Code == code {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -334,22 +334,22 @@ func (r RetryPolicy) CalculateBackoff(attempt int) time.Duration {
 	if attempt <= 0 {
 		return r.InitialDelay
 	}
-	
+
 	delay := r.InitialDelay
 	doublings := attempt - 1
-	
+
 	// Cap the number of doublings
 	if doublings > r.MaxDoublings {
 		doublings = r.MaxDoublings
 	}
-	
+
 	for i := 0; i < doublings; i++ {
 		delay = time.Duration(float64(delay) * r.Multiplier)
 		if delay > r.MaxDelay {
 			return r.MaxDelay
 		}
 	}
-	
+
 	return delay
 }
 
@@ -365,7 +365,7 @@ func DefaultQueueConfig(name string) QueueConfig {
 		RetryPolicy:      DefaultRetryPolicy(),
 		EnableDLQ:        true,
 		DLQMaxSize:       10000,
-		DLQRetentionDays: 7,  // ADDED DEFAULT
+		DLQRetentionDays: 7, // ADDED DEFAULT
 		EnableScheduled:  true,
 		EnablePriority:   true,
 		DefaultPriority:  PriorityNormal,
@@ -380,36 +380,36 @@ func DefaultQueueConfig(name string) QueueConfig {
 // ManagerConfig holds configuration for the queue manager
 type ManagerConfig struct {
 	// Timeouts and delays
-	DefaultTimeout        time.Duration
-	ShutdownTimeout       time.Duration
-	
+	DefaultTimeout  time.Duration
+	ShutdownTimeout time.Duration
+
 	// Retry configuration
-	MaxRetries           int
-	RetryInitialDelay    time.Duration
-	RetryMaxDelay        time.Duration
-	RetryMultiplier      float64
-	
+	MaxRetries        int
+	RetryInitialDelay time.Duration
+	RetryMaxDelay     time.Duration
+	RetryMultiplier   float64
+
 	// Health and monitoring
-	HealthCheckInterval  time.Duration
-	MetricsEnabled       bool
-	MetricsInterval      time.Duration
-	
+	HealthCheckInterval time.Duration
+	MetricsEnabled      bool
+	MetricsInterval     time.Duration
+
 	// Dead Letter Queue
-	DLQEnabled          bool
-	DLQRetentionDays    int
-	
+	DLQEnabled       bool
+	DLQRetentionDays int
+
 	// Scheduled jobs
-	ScheduledEnabled        bool
-	ScheduledPollInterval   time.Duration
-	
+	ScheduledEnabled      bool
+	ScheduledPollInterval time.Duration
+
 	// Auto-scaling
-	AutoScale              bool
-	ScaleUpThreshold       int
-	ScaleDownThreshold     int
-	ScaleInterval          time.Duration
-	
+	AutoScale          bool
+	ScaleUpThreshold   int
+	ScaleDownThreshold int
+	ScaleInterval      time.Duration
+
 	// Circuit breaker
-	CircuitBreakerEnabled    bool
-	CircuitBreakerThreshold  int
-	CircuitBreakerTimeout    time.Duration
+	CircuitBreakerEnabled   bool
+	CircuitBreakerThreshold int
+	CircuitBreakerTimeout   time.Duration
 }

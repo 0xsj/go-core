@@ -11,8 +11,6 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// CreateManager creates a queue manager without using DI container
-// This follows the same pattern as the database creation
 func CreateManager(ctx context.Context, cfg *config.Config, appLogger logger.Logger) QueueManager {
 	if !cfg.Queue.Enabled {
 		appLogger.Info("Queue system disabled in configuration")
@@ -136,26 +134,26 @@ func buildManagerConfig(cfg *config.Config) *ManagerConfig {
 	}
 
 	return &ManagerConfig{
-		DefaultTimeout:           defaultTimeout,
-		MaxRetries:               cfg.Queue.Global.MaxRetries,
-		RetryInitialDelay:        retryInitialDelay,
-		RetryMaxDelay:            retryMaxDelay,
-		RetryMultiplier:          cfg.Queue.Global.RetryMultiplier,
-		ShutdownTimeout:          shutdownTimeout,
-		HealthCheckInterval:      healthCheckInterval,
-		MetricsEnabled:           cfg.Queue.Global.MetricsEnabled,
-		MetricsInterval:          metricsInterval,
-		DLQEnabled:               cfg.Queue.Global.DLQEnabled,
-		DLQRetentionDays:         cfg.Queue.Global.DLQRetentionDays,
-		ScheduledEnabled:         cfg.Queue.Global.ScheduledEnabled,
-		ScheduledPollInterval:    scheduledPollInterval,
-		AutoScale:                cfg.Queue.Global.AutoScale,
-		ScaleUpThreshold:         cfg.Queue.Global.ScaleUpThreshold,
-		ScaleDownThreshold:       cfg.Queue.Global.ScaleDownThreshold,
-		ScaleInterval:            scaleInterval,
-		CircuitBreakerEnabled:    cfg.Queue.Global.CircuitBreakerEnabled,
-		CircuitBreakerThreshold:  cfg.Queue.Global.CircuitBreakerThreshold,
-		CircuitBreakerTimeout:    circuitBreakerTimeout,
+		DefaultTimeout:          defaultTimeout,
+		MaxRetries:              cfg.Queue.Global.MaxRetries,
+		RetryInitialDelay:       retryInitialDelay,
+		RetryMaxDelay:           retryMaxDelay,
+		RetryMultiplier:         cfg.Queue.Global.RetryMultiplier,
+		ShutdownTimeout:         shutdownTimeout,
+		HealthCheckInterval:     healthCheckInterval,
+		MetricsEnabled:          cfg.Queue.Global.MetricsEnabled,
+		MetricsInterval:         metricsInterval,
+		DLQEnabled:              cfg.Queue.Global.DLQEnabled,
+		DLQRetentionDays:        cfg.Queue.Global.DLQRetentionDays,
+		ScheduledEnabled:        cfg.Queue.Global.ScheduledEnabled,
+		ScheduledPollInterval:   scheduledPollInterval,
+		AutoScale:               cfg.Queue.Global.AutoScale,
+		ScaleUpThreshold:        cfg.Queue.Global.ScaleUpThreshold,
+		ScaleDownThreshold:      cfg.Queue.Global.ScaleDownThreshold,
+		ScaleInterval:           scaleInterval,
+		CircuitBreakerEnabled:   cfg.Queue.Global.CircuitBreakerEnabled,
+		CircuitBreakerThreshold: cfg.Queue.Global.CircuitBreakerThreshold,
+		CircuitBreakerTimeout:   circuitBreakerTimeout,
 	}
 }
 
