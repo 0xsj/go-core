@@ -44,42 +44,42 @@ func (p *Provider) Provide() Database {
 		// Only resolve dependencies when Provide() is called (after container is built)
 		cfg := container.Resolve[*config.Config](p.Container)
 		appLogger := container.Resolve[logger.Logger](p.Container)
-		
+
 		dbConfig := &Config{
-			Driver:              cfg.Database.Driver,
-			DSN:                 cfg.Database.DSN,
-			MaxOpenConns:        cfg.Database.MaxOpenConns,
-			MaxIdleConns:        cfg.Database.MaxIdleConns,
-			ConnMaxLifetime:     cfg.Database.ConnMaxLifetime,
-			ConnMaxIdleTime:     cfg.Database.ConnMaxIdleTime,
-			ConnectionTimeout:   cfg.Database.ConnectionTimeout,
-			QueryTimeout:        cfg.Database.QueryTimeout,
-			TransactionTimeout:  cfg.Database.TransactionTimeout,
-			MaxRetries:          cfg.Database.MaxRetries,
-			RetryInterval:       cfg.Database.RetryInterval,
-			EnableQueryLogging:  cfg.Database.EnableQueryLogging,
-			SlowQueryThreshold:  cfg.Database.SlowQueryThreshold,
-			EnableMetrics:       cfg.Database.EnableMetrics,
-			ValidationTimeout:   cfg.Database.ValidationTimeout,
+			Driver:             cfg.Database.Driver,
+			DSN:                cfg.Database.DSN,
+			MaxOpenConns:       cfg.Database.MaxOpenConns,
+			MaxIdleConns:       cfg.Database.MaxIdleConns,
+			ConnMaxLifetime:    cfg.Database.ConnMaxLifetime,
+			ConnMaxIdleTime:    cfg.Database.ConnMaxIdleTime,
+			ConnectionTimeout:  cfg.Database.ConnectionTimeout,
+			QueryTimeout:       cfg.Database.QueryTimeout,
+			TransactionTimeout: cfg.Database.TransactionTimeout,
+			MaxRetries:         cfg.Database.MaxRetries,
+			RetryInterval:      cfg.Database.RetryInterval,
+			EnableQueryLogging: cfg.Database.EnableQueryLogging,
+			SlowQueryThreshold: cfg.Database.SlowQueryThreshold,
+			EnableMetrics:      cfg.Database.EnableMetrics,
+			ValidationTimeout:  cfg.Database.ValidationTimeout,
 		}
-		
+
 		// Select provider based on driver
 		providersMu.RLock()
 		factory, exists := providers[cfg.Database.Driver]
 		providersMu.RUnlock()
-		
+
 		if !exists {
 			panic(fmt.Sprintf("Database provider '%s' not registered", cfg.Database.Driver))
 		}
-		
+
 		p.db = factory(dbConfig, appLogger)
-		
+
 		// Connect immediately after creating
 		if err := p.db.Connect(context.Background()); err != nil {
 			panic(fmt.Sprintf("Failed to connect to database: %v", err))
 		}
 	})
-	
+
 	return p.db
 }
 
