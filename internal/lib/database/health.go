@@ -36,11 +36,11 @@ func (h *HealthChecker) Critical() bool {
 func (h *HealthChecker) Check(ctx context.Context) health.HealthResult {
 	ctx, cancel := context.WithTimeout(ctx, h.timeout)
 	defer cancel()
-	
+
 	start := time.Now()
 	err := h.db.Ping(ctx)
 	latency := time.Since(start)
-	
+
 	if err != nil {
 		return health.HealthResult{
 			Status:  health.StatusUnhealthy,
@@ -53,13 +53,13 @@ func (h *HealthChecker) Check(ctx context.Context) health.HealthResult {
 			},
 		}
 	}
-	
+
 	stats := h.db.Stats()
-	
+
 	// Check for concerning patterns
 	status := health.StatusHealthy
 	message := "Database connection healthy"
-	
+
 	if stats.InUse >= stats.MaxOpenConnections-1 {
 		status = health.StatusDegraded
 		message = "Connection pool near exhaustion"
@@ -67,7 +67,7 @@ func (h *HealthChecker) Check(ctx context.Context) health.HealthResult {
 		status = health.StatusDegraded
 		message = "Connections waiting in queue"
 	}
-	
+
 	return health.HealthResult{
 		Status:  status,
 		Message: message,

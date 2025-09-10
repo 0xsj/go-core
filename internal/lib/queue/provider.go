@@ -15,12 +15,12 @@ import (
 
 // Provider creates and manages the queue system
 type Provider struct {
-	Container     *container.Container
-	manager       QueueManager
-	redisClient   *redis.Client
-	once          sync.Once
-	startOnce     sync.Once
-	stopOnce      sync.Once
+	Container   *container.Container
+	manager     QueueManager
+	redisClient *redis.Client
+	once        sync.Once
+	startOnce   sync.Once
+	stopOnce    sync.Once
 }
 
 // NewProvider creates a new queue provider
@@ -85,7 +85,7 @@ func (p *Provider) Start(ctx context.Context) error {
 			cfg := container.Resolve[*config.Config](p.Container)
 			appLogger := container.Resolve[logger.Logger](p.Container)
 			appLogger.Error("Failed to start queue manager", logger.Err(err))
-			
+
 			// Don't panic here, just log the error
 			// This allows the app to start even if queues fail
 			if cfg.Queue.Enabled {
@@ -93,14 +93,14 @@ func (p *Provider) Start(ctx context.Context) error {
 			}
 		}
 	})
-	
+
 	return nil
 }
 
 // Stop implements container.Stoppable
 func (p *Provider) Stop(ctx context.Context) error {
 	var finalErr error
-	
+
 	p.stopOnce.Do(func() {
 		if p.manager == nil {
 			return
@@ -198,25 +198,25 @@ func (p *Provider) buildManagerConfig(cfg *config.Config) *ManagerConfig {
 	circuitBreakerTimeout, _ := time.ParseDuration(cfg.Queue.Global.CircuitBreakerTimeout)
 
 	return &ManagerConfig{
-		DefaultTimeout:        defaultTimeout,
-		MaxRetries:           cfg.Queue.Global.MaxRetries,
-		RetryInitialDelay:    retryInitialDelay,
-		RetryMaxDelay:        retryMaxDelay,
-		RetryMultiplier:      cfg.Queue.Global.RetryMultiplier,
-		ShutdownTimeout:      shutdownTimeout,
-		HealthCheckInterval:  healthCheckInterval,
-		MetricsEnabled:       cfg.Queue.Global.MetricsEnabled,
-		MetricsInterval:      metricsInterval,
-		DLQEnabled:          cfg.Queue.Global.DLQEnabled,
-		DLQRetentionDays:    cfg.Queue.Global.DLQRetentionDays,
-		ScheduledEnabled:    cfg.Queue.Global.ScheduledEnabled,
-		ScheduledPollInterval: scheduledPollInterval,
-		ScaleUpThreshold:    cfg.Queue.Global.ScaleUpThreshold,
-		ScaleDownThreshold:  cfg.Queue.Global.ScaleDownThreshold,
-		ScaleInterval:       scaleInterval,
-		CircuitBreakerEnabled: cfg.Queue.Global.CircuitBreakerEnabled,
+		DefaultTimeout:          defaultTimeout,
+		MaxRetries:              cfg.Queue.Global.MaxRetries,
+		RetryInitialDelay:       retryInitialDelay,
+		RetryMaxDelay:           retryMaxDelay,
+		RetryMultiplier:         cfg.Queue.Global.RetryMultiplier,
+		ShutdownTimeout:         shutdownTimeout,
+		HealthCheckInterval:     healthCheckInterval,
+		MetricsEnabled:          cfg.Queue.Global.MetricsEnabled,
+		MetricsInterval:         metricsInterval,
+		DLQEnabled:              cfg.Queue.Global.DLQEnabled,
+		DLQRetentionDays:        cfg.Queue.Global.DLQRetentionDays,
+		ScheduledEnabled:        cfg.Queue.Global.ScheduledEnabled,
+		ScheduledPollInterval:   scheduledPollInterval,
+		ScaleUpThreshold:        cfg.Queue.Global.ScaleUpThreshold,
+		ScaleDownThreshold:      cfg.Queue.Global.ScaleDownThreshold,
+		ScaleInterval:           scaleInterval,
+		CircuitBreakerEnabled:   cfg.Queue.Global.CircuitBreakerEnabled,
 		CircuitBreakerThreshold: cfg.Queue.Global.CircuitBreakerThreshold,
-		CircuitBreakerTimeout: circuitBreakerTimeout,
+		CircuitBreakerTimeout:   circuitBreakerTimeout,
 	}
 }
 

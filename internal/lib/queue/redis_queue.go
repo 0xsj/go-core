@@ -115,7 +115,6 @@ func (q *RedisQueue) Enqueue(ctx context.Context, job *Job) error {
 			"data":     jobData,
 		},
 	}).Result()
-
 	if err != nil {
 		return fmt.Errorf("failed to enqueue job: %w", err)
 	}
@@ -171,7 +170,6 @@ func (q *RedisQueue) Dequeue(ctx context.Context, timeout time.Duration) (*Job, 
 		Count:    1,
 		Block:    timeout,
 	}).Result()
-
 	if err != nil {
 		if err == redis.Nil {
 			// No messages available
@@ -185,7 +183,7 @@ func (q *RedisQueue) Dequeue(ctx context.Context, timeout time.Duration) (*Job, 
 	}
 
 	message := streams[0].Messages[0]
-	
+
 	// Extract job data
 	jobData, ok := message.Values["data"].(string)
 	if !ok {
@@ -298,7 +296,7 @@ func (q *RedisQueue) Nack(ctx context.Context, jobID string, requeue bool) error
 
 	// First, acknowledge the message to remove from pending
 	q.redis.XAck(ctx, q.streamKey, q.consumerGroup, streamID)
-	
+
 	// Delete the original message
 	q.redis.XDel(ctx, q.streamKey, streamID)
 
@@ -346,7 +344,7 @@ func (q *RedisQueue) GetJob(ctx context.Context, jobID string) (*Job, error) {
 			Max:   fmt.Sprintf("%f", score),
 			Count: 1,
 		}).Result()
-		
+
 		if err == nil && len(members) > 0 {
 			var job Job
 			if err := json.Unmarshal([]byte(members[0]), &job); err == nil {
@@ -439,7 +437,7 @@ func (q *RedisQueue) Clear(ctx context.Context) error {
 // Pause stops processing of the queue
 func (q *RedisQueue) Pause(ctx context.Context) error {
 	q.isPaused = true
-	
+
 	// Set pause flag in Redis for distributed coordination
 	pauseKey := fmt.Sprintf("%s:paused", q.streamKey)
 	if err := q.redis.Set(ctx, pauseKey, "true", 0).Err(); err != nil {
@@ -453,7 +451,7 @@ func (q *RedisQueue) Pause(ctx context.Context) error {
 // Resume resumes processing of the queue
 func (q *RedisQueue) Resume(ctx context.Context) error {
 	q.isPaused = false
-	
+
 	// Remove pause flag in Redis
 	pauseKey := fmt.Sprintf("%s:paused", q.streamKey)
 	if err := q.redis.Del(ctx, pauseKey).Err(); err != nil {
@@ -501,7 +499,7 @@ func (q *RedisQueue) MoveToDLQ(ctx context.Context, job *Job, reason string) err
 			logger.String("queue", q.name),
 			logger.Int("size", int(dlqSize)),
 		)
-		
+
 		// Get all keys and remove the oldest one
 		allKeys, _ := q.redis.HKeys(ctx, q.dlqKey).Result()
 		if len(allKeys) > 0 {
@@ -704,14 +702,13 @@ func (q *RedisQueue) ProcessScheduledJobs(ctx context.Context) error {
 		Min: "-inf",
 		Max: maxScore,
 	}).Result()
-
 	if err != nil {
 		return fmt.Errorf("failed to get scheduled jobs: %w", err)
 	}
 
 	for _, z := range scheduled {
 		jobData := z.Member.(string)
-		
+
 		// Remove from scheduled set
 		if err := q.redis.ZRem(ctx, q.scheduledKey, jobData).Err(); err != nil {
 			q.logger.Error("Failed to remove scheduled job", logger.Err(err))
@@ -735,7 +732,7 @@ func (q *RedisQueue) ProcessScheduledJobs(ctx context.Context) error {
 				logger.String("job_id", job.ID),
 				logger.Err(err),
 			)
-			
+
 			// Put it back in scheduled set for retry
 			q.redis.ZAdd(ctx, q.scheduledKey, redis.Z{
 				Score:  z.Score + 60, // Retry in 1 minute
@@ -752,17 +749,16 @@ func (q *RedisQueue) ProcessScheduledJobs(ctx context.Context) error {
 	return nil
 }
 
-// checkPaused checks if the queue is paused (for distributed coordination)
-func (q *RedisQueue) checkPaused(ctx context.Context) bool {
-	pauseKey := fmt.Sprintf("%s:paused", q.streamKey)
-	val, err := q.redis.Get(ctx, pauseKey).Result()
-	if err == nil && val == "true" {
-		q.isPaused = true
-		return true
-	}
-	q.isPaused = false
-	return false
-}
+// func (q *RedisQueue) checkPaused(ctx context.Context) bool {
+// 	pauseKey := fmt.Sprintf("%s:paused", q.streamKey)
+// 	val, err := q.redis.Get(ctx, pauseKey).Result()
+// 	if err == nil && val == "true" {
+// 		q.isPaused = true
+// 		return true
+// 	}
+// 	q.isPaused = false
+// 	return false
+// }
 
 // ClaimStuckMessages claims messages that have been pending too long
 func (q *RedisQueue) ClaimStuckMessages(ctx context.Context, minIdleTime time.Duration) error {
@@ -774,7 +770,6 @@ func (q *RedisQueue) ClaimStuckMessages(ctx context.Context, minIdleTime time.Du
 		End:    "+",
 		Count:  100,
 	}).Result()
-
 	if err != nil {
 		return fmt.Errorf("failed to get pending messages: %w", err)
 	}
@@ -789,7 +784,6 @@ func (q *RedisQueue) ClaimStuckMessages(ctx context.Context, minIdleTime time.Du
 				MinIdle:  minIdleTime,
 				Messages: []string{p.ID},
 			}).Result()
-
 			if err != nil {
 				q.logger.Error("Failed to claim stuck message",
 					logger.String("message_id", p.ID),
@@ -805,7 +799,14 @@ func (q *RedisQueue) ClaimStuckMessages(ctx context.Context, minIdleTime time.Du
 					var job Job
 					if err := json.Unmarshal([]byte(jobData), &job); err == nil {
 						// Mark as failed and move to DLQ or retry
-						q.Nack(ctx, job.ID, job.Attempts < job.MaxAttempts)
+						if err := q.Nack(ctx, job.ID, job.Attempts < job.MaxAttempts); err != nil {
+							q.logger.Error("Failed to nack stuck job",
+								logger.String("job_id", job.ID),
+								logger.String("message_id", p.ID),
+								logger.Err(err),
+							)
+							// Continue processing other stuck messages
+						}
 					}
 				}
 
